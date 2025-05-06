@@ -202,7 +202,7 @@ class DatabricksChatbot:
 
                     # This part is hard coded for demo purpose only - normally would be dynamic function list
                     if "genie" in function_name:
-                        print("Genie is activated, please be patient")
+                        print(f"Genie '{function_name }' is activated, please be patient")
                         genie_space_id = function_name.split('_')[1]
 
                         results = run_genie(genie_space_id = genie_space_id, 

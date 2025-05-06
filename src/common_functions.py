@@ -168,7 +168,7 @@ def create_config(secret_scope: str, databricks_token_secret_value: str, databri
             } 
 
     config = {  
-        "system_prompt": "When creating prompts for Genie, ensure that you are passing current prompt unchanged to Genie. This will help generate accurate and efficient SQL queries. If you are processing tool results from Genie, remember to clean the output and always mention which Genie Space was used. If it mentions SQL query but value is missing, mention that Genie didn't provide SQL output.",    
+        "system_prompt": "Only invoke a Genie space when the user prompt clearly aligns with the specific capability of that space (e.g., SQL generation, data exploration, reporting). Do not default to Genie unless the intent is explicit or strongly implied by the request. When invoking a Genie space, forward the prompt unchanged to preserve user intent. If processing a response from Genie, clean and format the output appropriately, and always indicate which Genie space was used. If the user prompt suggests a relevant task but Genie did not return a valid output, clearly state that no result was returned by Genie.",    
         "secret_scope": secret_scope,
         "databricks_token_secret_value": databricks_token_secret_value,
         "databricks_host_secret_value": databricks_host_secret_value,
