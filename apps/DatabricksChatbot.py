@@ -247,7 +247,8 @@ class DatabricksChatbot:
                         openai_client = self.openai_client,
                         model_name=self.endpoint_name,
                         messages=function_call_messages,
-                        max_tokens=max_tokens
+                        max_tokens=max_tokens,
+                        tools = self.tools
                         ).choices[0].message.content
 
             else:
