@@ -69,7 +69,7 @@ def get_genie_query_attachment_results(genie_space_id: str, genie_conn: str, con
     data_array = response.json()['statement_response']['result']['data_array']  
     return str(data_array)  
  
-def run_genie(genie_space_id: str, genie_conn: str, prompt: str, wait_seconds: int = 1, max_retries: int =  20) -> str:
+def run_genie(genie_space_id: str, genie_conn: str, prompt: str, wait_seconds: int = 1, max_retries: int =  30) -> str:
     """
     Main routine to:
     1. Post a prompt to Genie.
