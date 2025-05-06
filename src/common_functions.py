@@ -209,7 +209,7 @@ def check_deployment_status(token, server_hostname, app_name, payload, max_tries
     print(f"Deployment of {app_name} did not complete after {max_tries} attempts.")  
     return f"Deployment of {app_name} did not complete after {max_tries} attempts."
 
-def deploy_databricks_apps(name: str, model_name: str = "databricks-meta-llama-3-3-70b-instruct") -> None:  
+def deploy_databricks_apps(name: str, model_name: str = "databricks-claude-3-7-sonnet") -> None:  
     max_tries = 25  
   
     # Load configuration data  
