@@ -211,7 +211,7 @@ class DatabricksChatbot:
                     
                     elif "devops" in function_name:
                         print("DevOps is activated, please be patient")
-                        results = create_devops_ticket(content = function_arguments['content'])
+                        results = create_devops_ticket(content = function_arguments['content'], connection = self.devops_connection)
                     
                     elif "documentation" in function_name:
                         print("Documentation is activated, please be patient")

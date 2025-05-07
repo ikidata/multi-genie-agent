@@ -3,7 +3,7 @@ from databricks.sdk.service.serving import ExternalFunctionRequestHttpMethod
 import json 
 from datetime import datetime
 
-def fetch_active_epic() -> list:
+def fetch_active_epic(connection: str) -> list:
     """  
     Fetches a list of active epic work item IDs from Azure DevOps that contain a specific title and are not marked as 'Done'.  
   
@@ -27,7 +27,7 @@ def fetch_active_epic() -> list:
 
     # Send the WIQL query to the Azure DevOps API to execute the query 
     response = WorkspaceClient().serving_endpoints.http_request(
-        conn="azure_devops_demo",
+        conn=connection,
         method=ExternalFunctionRequestHttpMethod.POST,
         path=f"/_apis/wit/wiql?api-version=7.0",
         json={
@@ -41,7 +41,7 @@ def fetch_active_epic() -> list:
     # Return the list of work item IDs  
     return work_item_ids  
 
-def create_devops_ticket(content: str) -> str:
+def create_devops_ticket(content: str, connection: str) -> str:
     """  
     Creates or updates a DevOps ticket in Azure DevOps.  
   
@@ -55,7 +55,7 @@ def create_devops_ticket(content: str) -> str:
     current_date = datetime.now().strftime("%Y-%m-%d")  
       
     # Fetch the list of active epics  
-    current_epic = fetch_active_epic()  
+    current_epic = fetch_active_epic(connection)  
       
     # Determine the URL and HTTP method based on whether an active epic exists  
     if len(current_epic) != 0:
@@ -96,7 +96,7 @@ def create_devops_ticket(content: str) -> str:
     ]  
     # Send the request to Azure DevOps API to create or update the ticket 
     response = WorkspaceClient().serving_endpoints.http_request(
-        conn="azure_devops_demo",
+        conn=connection,
         method=method, 
         path=url,
         headers={"Content-Type": "application/json-patch+json"},

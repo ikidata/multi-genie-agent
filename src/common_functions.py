@@ -4,10 +4,21 @@ import yaml
 import time
 import os
 from dbruntime.databricks_repl_context import get_context
+from databricks.sdk import WorkspaceClient
 
+def create_devops_connection(name: str, secret_scope: str, devops_token: str, devops_organization: str, devops_project: str): 
 
-def create_devops_connection(name: str, devops_token: str, devops_organization: str, devops_project: str):  
-  
+    # Retrieve the Databricks server hostname from the context  
+    databricks_server_hostname = get_context().browserHostName
+    databricks_server_hostname = f"https://{databricks_server_hostname}"
+      
+    # Retrieve the Databricks token from the context  
+    databricks_token  = get_context().apiToken  
+
+    w = WorkspaceClient()
+    dbutils = w.dbutils
+    devops_token = dbutils.secrets.get(secret_scope, devops_token)
+    
     # Construct the payload for the connection  
     payload = {  
         "comment": "Genie-multi-agent DevOps PoC Connection",  
