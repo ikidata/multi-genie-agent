@@ -6,7 +6,14 @@ import os
 from dbruntime.databricks_repl_context import get_context
 
 
-def create_devops_connection(name: str, devops_token: str, devops_organization: str, devops_project: str):  
+def create_devops_connection(name: str, devops_token: str, devops_organization: str, devops_project: str): 
+
+    # Retrieve the Databricks server hostname from the context  
+    databricks_server_hostname = get_context().browserHostName
+    databricks_server_hostname = f"https://{databricks_server_hostname}"
+      
+    # Retrieve the Databricks token from the context  
+    databricks_token  = get_context().apiToken  
   
     # Construct the payload for the connection  
     payload = {  
