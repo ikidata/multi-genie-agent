@@ -109,7 +109,7 @@ def run_genie(genie_space_id: str, genie_conn: str, prompt: str, wait_seconds: i
             raw_get_value = get_genie_query_results(genie_space_id, genie_conn, conversation_id, message_id)  
             status = raw_get_value.get('status', 'UNKNOWN')  
             current_try += 1  
-            print("Waiting for completion... (try", current_try, "of", max_retries,")")  
+            print("⏳ Waiting for completion... (try", current_try, "of", max_retries,")")  
             if status != 'COMPLETED':  
                 time.sleep(wait_seconds)  
 
