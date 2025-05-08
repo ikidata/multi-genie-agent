@@ -164,7 +164,7 @@ class DatabricksChatbot:
     def _call_model_endpoint(self, messages, max_tokens=750):
 
         function_call_messages = messages.copy()                       # Copying messages to avoid modifying the original messages
-        print(f"Starting to process the next messages: {messages}")
+        print(f"🤖 Starting to process the next messages: {messages}")
         try:
             print('Calling model endpoint...')
 
@@ -193,7 +193,7 @@ class DatabricksChatbot:
                 function_call_messages.append(payload)        
 
                 for tool_call in response.choices[0].message.tool_calls:
-                    print("Tools are activated")    
+                    print("🛠 Tools are activated")    
 
                     # Parse the function arguments
                     function_arguments = json.loads(tool_call.function.arguments)
@@ -202,7 +202,7 @@ class DatabricksChatbot:
 
                     # This part is hard coded for demo purpose only - normally would be dynamic function list
                     if "genie" in function_name:
-                        print(f"Genie '{function_name }' is activated, please be patient")
+                        print(f"🧞‍♂️ Genie '{function_name }' is activated, please be patient")
                         genie_space_id = function_name.split('_')[1]
 
                         results = run_genie(genie_space_id = genie_space_id, 
@@ -242,7 +242,7 @@ class DatabricksChatbot:
                     function_call_messages.append(payload)
 
                     # Calling one more time model endpoint to clean Genie results
-                    print(f"Calling model endpoint to clean the results: {function_call_messages}")
+                    print(f"📡 Calling model endpoint to clean the results: {function_call_messages}")
                     results = call_chat_model(
                         openai_client = self.openai_client,
                         model_name=self.endpoint_name,
@@ -253,9 +253,9 @@ class DatabricksChatbot:
 
             else:
                 results = response.choices[0].message.content
-                print('Model endpoint called successfully')
-            print(f"Current messages: {messages}")
-            print(f"Returning results: {results}")
+                print('✅ Model endpoint called successfully')
+            print(f"💾 Current messages: {messages}")
+            print(f"🤖 Returning results: {results}")
             return results
         except Exception as e:
             print(f'Error calling model endpoint: {str(e)}')
