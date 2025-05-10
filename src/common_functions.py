@@ -239,25 +239,7 @@ def deploy_databricks_apps(name: str, model_name: str = "databricks-claude-3-7-s
                     "name": model_name,  
                     "permission": "CAN_QUERY"  
                 }  
-            },  
-            {  
-                "description": "API key for Databricks host secret",  
-                "name": "databricks-host-secret",  
-                "secret": {  
-                    "key": config_data['databricks_host_secret_value'],  
-                    "permission": "READ",  
-                    "scope": config_data['secret_scope']  
-                }  
-            },  
-            {  
-                "description": "API key for Databricks token secret",  
-                "name": "databricks-token-secret",  
-                "secret": {  
-                    "key": config_data['databricks_token_secret_value'],  
-                    "permission": "READ",  
-                    "scope": config_data['secret_scope']  
-                }  
-            }  
+            }
         ]  
     }  
   
