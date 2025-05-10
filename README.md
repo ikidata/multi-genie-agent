@@ -20,7 +20,7 @@ This agentic solution demonstrates the true power of the Multi-Genie-Agent appro
 
 Remember, the goal of this solution is to demonstrate possibilities and provide new insights, rather than offering production-ready solutions. Take the insights gained and continue developing your own solutions further. Because of the nature of this PoC, many essential parts are missing, such as proper validations and more advanced functionalities.
 
-Genie subagents are limited to 20 seconds before timeout. The Databricks Apps model endpoint acts as an executor agent, passing prompts forward to Genie spaces and back. It uses a simple function call agentic approach with temporarily extended memory, wrapping Genie outputs before returning the value. All phases are visible in the logs, but the end user can only see the final result. The executor agent has the freedom to choose subagents, so tool metadata is crucial for smooth operation. Thanks to short-term memory, it's possible to ask questions from different Genie spaces and then pass them to DevOps.
+Genie subagents are limited to 30 seconds before timeout. The Databricks Apps model endpoint acts as an executor agent, passing prompts forward to Genie spaces and back. It uses a simple function call agentic approach with temporarily extended memory, wrapping Genie outputs before returning the value. All phases are visible in the logs, but the end user can only see the final result. The executor agent has the freedom to choose subagents, so tool metadata is crucial for smooth operation. Thanks to short-term memory, it's possible to ask questions from different Genie spaces and then pass them to DevOps.
 
 Since Databricks offers good pre-built templates for creating apps, the Dash chatbot template has been used here. On top of it, more sophisticated features have been built, but the core app functionality (like callbacks) and visualization have been modified only slightly.
 
@@ -28,6 +28,8 @@ Since Databricks offers good pre-built templates for creating apps, the Dash cha
 -   databricks_genie_space - Prebuilt Genie Spaces which is built on top of System Tables (outside of this repo scope)
 -   customer_data_genie_space - Prebuilt Genie Spaces which is built on top fabricated customer data (outside of this repo scope)
 -   create_update_devops_ticket - Create / Update Azure DevOps tickets (capabilities limited for demo purposes)
+
+**Keep in mind that you can use more Genie spaces than just two.**
 
 ## Prerequisites and Installation 
 

@@ -44,38 +44,41 @@ def create_devops_connection(name: str, secret_scope: str, devops_token: str, de
     ))
   
 
-def create_genie_connection(name: str):  
+# def create_genie_connection(name: str):  
+#     '''
+#     DEPRECATED
+#     '''
   
-    # Retrieve the Databricks server hostname from the context  
-    databricks_server_hostname = get_context().browserHostName
-    databricks_server_hostname = f"https://{databricks_server_hostname}"
+#     # Retrieve the Databricks server hostname from the context  
+#     databricks_server_hostname = get_context().browserHostName
+#     databricks_server_hostname = f"https://{databricks_server_hostname}"
       
-    # Retrieve the Databricks token from the context  
-    databricks_token  = get_context().apiToken 
+#     # Retrieve the Databricks token from the context  
+#     databricks_token  = get_context().apiToken 
       
-    # Construct the payload for the connection  
-    payload = {  
-        "comment": "Genie-multi-agent PoC Connection",  
-        "connection_type": "HTTP",  
-        "name": name,  
-        "options": {  
-            "host": databricks_server_hostname,  
-            "port": "443",  
-            "base_path": "/api",  
-            "bearer_token": databricks_token  
-        },  
-        "read_only": False  
-    }  
+#     # Construct the payload for the connection  
+#     payload = {  
+#         "comment": "Genie-multi-agent PoC Connection",  
+#         "connection_type": "HTTP",  
+#         "name": name,  
+#         "options": {  
+#             "host": databricks_server_hostname,  
+#             "port": "443",  
+#             "base_path": "/api",  
+#             "bearer_token": databricks_token  
+#         },  
+#         "read_only": False  
+#     }  
       
-    # Run the REST API command to create the connection  
-    print(run_rest_api(  
-        token=databricks_token,  
-        server_hostname=databricks_server_hostname,  
-        api_version="2.1",  
-        api_command='/unity-catalog/connections',  
-        action_type='POST',  
-        payload=payload  
-    ))
+#     # Run the REST API command to create the connection  
+#     print(run_rest_api(  
+#         token=databricks_token,  
+#         server_hostname=databricks_server_hostname,  
+#         api_version="2.1",  
+#         api_command='/unity-catalog/connections',  
+#         action_type='POST',  
+#         payload=payload  
+#     ))
 
 
 def run_rest_api(token: str, server_hostname: str, api_version: str, api_command: str, action_type: str,  payload: dict = {}) -> str:
@@ -119,7 +122,7 @@ def run_rest_api(token: str, server_hostname: str, api_version: str, api_command
     except Exception as e:
         return e
 
-def create_config(secret_scope: str, databricks_token_secret_value: str, databricks_host_secret_value: str, databricks_genie_space_id_list: dict[str], genie_connection: str, devops_connection: str, devops_token_secret_value: str, devops_organization: str, devops_project: str):  
+def create_config(databricks_genie_space_id_list: dict[str], devops_connection: str):  
     tools = {}  
   
     for genie_space_id, description in databricks_genie_space_id_list.items():  
@@ -146,7 +149,7 @@ def create_config(secret_scope: str, databricks_token_secret_value: str, databri
                 "type": "function",  
                 "function": {  
                     "name": f"create_update_devops_ticket",  
-                    "description": "A tool dedicated for Azure DevOps ticket creation and update",  
+                    "description": "A tool dedicated for Azure DevOps ticket creation and update. Format the content to be suitable for DevOps ticket. It means simple markdown format.",  
                     "parameters": {  
                         "type": "object",  
                         "properties": {  
@@ -162,14 +165,7 @@ def create_config(secret_scope: str, databricks_token_secret_value: str, databri
 
     config = {  
         "system_prompt": "Only invoke a Genie space when the user prompt clearly aligns with the specific capability of that space (e.g., SQL generation, data exploration, reporting). Do not default to Genie unless the intent is explicit or strongly implied by the request. When invoking a Genie space, forward the prompt unchanged to preserve user intent. If processing a response from Genie, clean and format the output appropriately, and always indicate which Genie space was used. If the user prompt suggests a relevant task but Genie did not return a valid output, clearly state that no result was returned by Genie.",    
-        "secret_scope": secret_scope,
-        "databricks_token_secret_value": databricks_token_secret_value,
-        "databricks_host_secret_value": databricks_host_secret_value,
-        "genie_connection": genie_connection,
         "devops_connection": devops_connection,
-        "devops_token_secret_value": devops_token_secret_value,
-        "devops_organization": devops_organization,
-        "devops_project": devops_project,
         "tools": tools
     }  
   

@@ -2,30 +2,33 @@ import dash
 from dash import html, Input, Output, State, dcc
 import dash_bootstrap_components as dbc
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.serving import ChatMessage, ChatMessageRole, ExternalFunctionRequestHttpMethod
 import json
 import time
 from openai import OpenAI
 import yaml
+import os 
+import flask 
+import logging
 
-from genie_functions import run_genie
-from general_functions import call_chat_model, get_documentation
+from genie_functions import post_genie, get_genie_query_results, get_genie_query_attachment_results
+from general_functions import call_chat_model, convert_hostname_to_databricks_url, create_databricks_token
 from devops_functions import create_devops_ticket
 
 class DatabricksChatbot:
     def __init__(self, app, endpoint_name, height='600px'):
         self.app = app
         self.endpoint_name = endpoint_name
-        self.databricks_host_secret = databricks_host_secret
-        self.databricks_token_secret = databricks_token_secret
         self.height = height
 
+        # Set up logging
+        self.logger = self.activate_logger()
+
         try:
-            print('Initializing WorkspaceClient...')
+            self.logger.info(f'Initializing WorkspaceClient...')
             self.w = WorkspaceClient()
-            print('WorkspaceClient initialized successfully')
+            self.logger.info(f'WorkspaceClient initialized successfully')
         except Exception as e:
-            print(f'Error initializing WorkspaceClient: {str(e)}')
+            self.logger.info(f'Error initializing WorkspaceClient: {str(e)}')
             self.w = None
         
         self.get_configs()    
@@ -34,6 +37,27 @@ class DatabricksChatbot:
         self._create_callbacks()
         self._add_custom_css()
 
+    def activate_logger(self):
+        '''
+        Activating Logger for Monitoring.
+        '''
+        logger = logging.getLogger(__name__)
+        logger.setLevel(logging.INFO)
+
+        formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s', "%d.%m.%Y %H:%M:%S")
+
+        handler = logging.StreamHandler()
+        handler.setFormatter(formatter)
+
+        #Only add handler the first time
+        if len(logger.handlers) == 0:
+            logger.addHandler(handler)
+        
+        # Disable propagation to prevent logs from bubbling up to the parent logger(s)  
+        logger.propagate = False  
+        
+        return logger
+        
 
     def get_configs(self):
         '''
@@ -45,9 +69,8 @@ class DatabricksChatbot:
 
         self.system_prompt = config_data['system_prompt']
         self.devops_connection = config_data['devops_connection']
-        self.genie_connection = config_data['genie_connection']
         self.tools = [value for key, value in config_data['tools'].items()]
-        print("Configs were fetched successfully")
+        self.logger.info(f"Configs were fetched successfully")
 
 
     def get_authentication(self) -> None:
@@ -63,7 +86,7 @@ class DatabricksChatbot:
             # Log the error and raise a runtime error with a meaningful message
             error_message = f"Failed to fetch authentication details: {str(e)}"
             raise RuntimeError(error_message)  
-        print("OpenAI API client was initialized successfully")        
+        self.logger.info(f"OpenAI API client was initialized successfully")        
 
     def _create_layout(self):
         return html.Div([
@@ -135,7 +158,7 @@ class DatabricksChatbot:
                 })
             except Exception as e:
                 error_message = f'Error: {str(e)}'
-                print(error_message)  # Log the error for debugging
+                self.logger.info(error_message)  # Log the error for debugging
                 chat_history.append({
                     'role': 'assistant',
                     'content': error_message
@@ -151,17 +174,87 @@ class DatabricksChatbot:
             prevent_initial_call=True
         )
         def clear_chat(n_clicks):
-            print('Clearing chat')
+            self.logger.info(f'Clearing chat')
             if n_clicks:
                 return [], []
             return dash.no_update, dash.no_update
 
+    def run_genie(self, genie_space_id: str, prompt: str, wait_seconds: int = 1, max_retries: int =  30) -> str:
+
+        response = post_genie(self.server_hostname, self.token, genie_space_id, prompt)  
+
+        if response.status_code == 200:  
+            try:  
+                raw_post_value = json.loads(response.text)  
+            except json.JSONDecodeError as exc:  
+                self.logger.info(f"JSON decode error on POST response:", exc)  
+                return "Genie JSON decode error on POST response:", exc
+
+            conversation_id = raw_post_value.get('conversation_id')  
+            message_id = raw_post_value.get('message_id')  
+            if not conversation_id or not message_id:  
+                self.logger.info(f"Missing conversation_id or message_id in the response.")  
+                return "Genie Missing conversation_id or message_id in the response."
+
+            status = 'IN_PROGRESS'  
+            current_try = 0  
+            raw_get_value = {}  
+
+            while status != 'COMPLETED' and current_try < max_retries:  
+                raw_get_value = get_genie_query_results(self.server_hostname, self.token, genie_space_id, conversation_id, message_id)  
+    
+                status = raw_get_value.json().get('status', 'UNKNOWN')  
+                current_try += 1  
+                self.logger.info(f"⏳ Waiting for completion... (try {current_try} of max_retries {max_retries})")  
+                if status != 'COMPLETED':  
+                    time.sleep(wait_seconds)  
+
+            if status != 'COMPLETED':  
+                self.logger.info(f"Genie query did not complete after {max_retries} retries.")  
+                return f"Genie query did not complete after {max_retries} retries."
+
+            attachments = raw_get_value.json().get('attachments', [])  
+            if not attachments:  
+                self.logger.info(f"No attachments found in the Genie response.")  
+                return "No attachments found in the Genie response."
+
+            attachment_value = attachments[0]  
+            attachment_id = attachment_value.get('attachment_id')  
+            if not attachment_id:  
+                self.logger.info(f"No attachment_id found in the first attachment.")  
+                return "No attachment_id found in the first Genie attachment."
+
+            if 'text' in attachment_value:  
+                text_content = attachment_value['text'].get('content', '')  
+                self.logger.info(ftext_content)  
+                return text_content
+            
+            elif 'query' in attachment_value:  
+                query_description = attachment_value['query'].get('description', '')  
+                try:  
+                    query_results = get_genie_query_attachment_results(self.server_hostname, self.token, genie_space_id, conversation_id, message_id, attachment_id)  
+                    final_value = "Text: " + query_description + "\nQuery: " + query_results  
+                except Exception as e:  
+                    self.logger.info(f"Error retrieving query attachment results:", e)  
+                    final_value = query_description  
+                self.logger.info(f"Final Genie value: {final_value}")  
+                return final_value
+            else:  
+                self.logger.info(f"Failed to decode Genie results from the attachment.")  
+        else:  
+            try:  
+                error_message = response.json()  
+            except Exception:  
+                error_message = response.text  
+            self.logger.info(f"Error with Genie:", error_message)  
+            return f"Error with Genie: {error_message}"
+
     def _call_model_endpoint(self, messages, max_tokens=750):
 
         function_call_messages = messages.copy()                       # Copying messages to avoid modifying the original messages
-        print(f"🤖 Starting to process the next messages: {messages}")
+        self.logger.info(f"🤖 Starting to process the next messages: {messages}")
         try:
-            print('Calling model endpoint...')
+            self.logger.info(f'Calling model endpoint...')
 
 
             response = call_chat_model(
@@ -188,7 +281,7 @@ class DatabricksChatbot:
                 function_call_messages.append(payload)        
 
                 for tool_call in response.choices[0].message.tool_calls:
-                    print("🛠 Tools are activated")    
+                    self.logger.info(f"🛠 Tools are activated")    
 
                     # Parse the function arguments
                     function_arguments = json.loads(tool_call.function.arguments)
@@ -197,15 +290,19 @@ class DatabricksChatbot:
 
                     # This part is hard coded for demo purpose only - normally would be dynamic function list
                     if "genie" in function_name:
-                        print(f"🧞‍♂️ Genie '{function_name }' is activated, please be patient")
+                        self.logger.info(f"🧞‍♂️ Genie '{function_name }' is activated, please be patient")
                         genie_space_id = function_name.split('_')[1]
 
-                        results = run_genie(genie_space_id = genie_space_id, 
-                                    genie_conn = self.genie_connection, 
-                                    prompt = function_arguments['prompt'])
-                    
+
+                        host_raw = flask.request.headers.get('X-Forwarded-Host', 'dummy_host')
+                        self.server_hostname = convert_hostname_to_databricks_url(host_raw)
+                        client_id = os.getenv('DATABRICKS_CLIENT_ID')
+                        client_secret = os.getenv('DATABRICKS_CLIENT_SECRET')
+                        self.token = create_databricks_token(server_hostname = self.server_hostname, client_id = client_id, client_secret = client_secret)
+                        results = self.run_genie(genie_space_id = genie_space_id, prompt = function_arguments['prompt']) 
+
                     elif "devops" in function_name:
-                        print("DevOps is activated, please be patient")
+                        self.logger.info(f"DevOps is activated, please be patient")
                         results = create_devops_ticket(content = function_arguments['content'], connection = self.devops_connection)
 
                     else:
@@ -222,7 +319,7 @@ class DatabricksChatbot:
                     function_call_messages.append(payload)
 
                     # Calling one more time model endpoint to clean Genie results
-                    print(f"📡 Calling model endpoint to clean the results: {function_call_messages}")
+                    self.logger.info(f"📡 Calling model endpoint to clean the results: {function_call_messages}")
                     results = call_chat_model(
                         openai_client = self.openai_client,
                         model_name=self.endpoint_name,
@@ -233,12 +330,12 @@ class DatabricksChatbot:
 
             else:
                 results = response.choices[0].message.content
-                print('✅ Model endpoint called successfully')
-            print(f"💾 Current messages: {messages}")
-            print(f"🤖 Returning results: {results}")
+                self.logger.info(f'✅ Model endpoint called successfully')
+            self.logger.info(f"💾 Current messages: {messages}")
+            self.logger.info(f"🤖 Returning results: {results}")
             return results
         except Exception as e:
-            print(f'Error calling model endpoint: {str(e)}')
+            self.logger.info(f'Error calling model endpoint: {str(e)}')
             raise
 
     def _format_chat_display(self, chat_history):  

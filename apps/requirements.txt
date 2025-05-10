@@ -4,3 +4,5 @@ databricks-sdk
 python-dotenv
 databricks-sdk==0.49.0
 openai==1.55.3
+flask==3.0.3
+logging

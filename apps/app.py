@@ -7,12 +7,6 @@ from DatabricksChatbot import DatabricksChatbot
 serving_endpoint = os.getenv('SERVING_ENDPOINT')
 assert serving_endpoint, 'SERVING_ENDPOINT must be set in app.yaml.'
 
-databricks_host_secret = os.getenv('DATABRICKS_HOST_SECRET')
-assert databricks_host_secret, 'DATABRICKS_HOST_SECRET must be set in app.yaml.'
-
-databricks_token_secret = os.getenv('DATABRICKS_TOKEN_SECRET')
-assert databricks_token_secret, 'DATABRICKS_TOKEN_SECRET must be set in app.yaml.'
-
 # Initialize the Dash app with a clean theme
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
 
