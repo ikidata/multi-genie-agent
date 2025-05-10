@@ -10,7 +10,7 @@ import os
 import flask 
 import logging
 
-from genie_functions import post_genie, get_genie_query_results, get_genie_query_attachment_results
+from genie_functions import run_genie
 from general_functions import call_chat_model, convert_hostname_to_databricks_url, create_databricks_token
 from devops_functions import create_devops_ticket
 
@@ -33,7 +33,6 @@ class DatabricksChatbot:
         
         self.get_configs()    
         self.get_authentication()
-        self.layout = self._create_layout()
         self._create_callbacks()
         self._add_custom_css()
 
@@ -88,12 +87,22 @@ class DatabricksChatbot:
             raise RuntimeError(error_message)  
         self.logger.info(f"OpenAI API client was initialized successfully")        
 
-    def _create_layout(self):
+    def _create_layout(self, user_name):
+        user_name = user_name  # ✅ Store it for later use
+
+        user_name_cleaned = user_name.split('@')[0].capitalize()
+        default_message = f"Hello {user_name_cleaned}! Welcome to chat with Multi-Genie agentic solution on Databricks 🤖"
+
         return html.Div([
-            html.H2('Chat with multiple Genies', className='chat-title mb-3'),
+            html.H2(f'Chat with multiple Genies 🧞‍♂️', className='chat-title mb-3'), 
+            html.Div([
+                f"User👤: {user_name_cleaned}"
+            ]),
             dbc.Card([
                 dbc.CardBody([
-                    html.Div(id='chat-history', className='chat-history'),
+                    html.Div([
+                        html.Div(default_message, className='chat-message assistant-message')
+                    ], id='chat-history', className='chat-history'),
                 ], className='d-flex flex-column chat-body')
             ], className='chat-card mb-3'),
             dbc.InputGroup([
@@ -130,7 +139,6 @@ class DatabricksChatbot:
             chat_history.append({'role': 'user', 'content': user_input})
             chat_display = self._format_chat_display(chat_history)
             chat_display.append(self._create_typing_indicator())
-
             return chat_history, chat_display, '', {'trigger': True}
 
         @self.app.callback(
@@ -179,76 +187,6 @@ class DatabricksChatbot:
                 return [], []
             return dash.no_update, dash.no_update
 
-    def run_genie(self, genie_space_id: str, prompt: str, wait_seconds: int = 1, max_retries: int =  30) -> str:
-
-        response = post_genie(self.server_hostname, self.token, genie_space_id, prompt)  
-
-        if response.status_code == 200:  
-            try:  
-                raw_post_value = json.loads(response.text)  
-            except json.JSONDecodeError as exc:  
-                self.logger.info(f"JSON decode error on POST response:", exc)  
-                return "Genie JSON decode error on POST response:", exc
-
-            conversation_id = raw_post_value.get('conversation_id')  
-            message_id = raw_post_value.get('message_id')  
-            if not conversation_id or not message_id:  
-                self.logger.info(f"Missing conversation_id or message_id in the response.")  
-                return "Genie Missing conversation_id or message_id in the response."
-
-            status = 'IN_PROGRESS'  
-            current_try = 0  
-            raw_get_value = {}  
-
-            while status != 'COMPLETED' and current_try < max_retries:  
-                raw_get_value = get_genie_query_results(self.server_hostname, self.token, genie_space_id, conversation_id, message_id)  
-    
-                status = raw_get_value.json().get('status', 'UNKNOWN')  
-                current_try += 1  
-                self.logger.info(f"⏳ Waiting for completion... (try {current_try} of max_retries {max_retries})")  
-                if status != 'COMPLETED':  
-                    time.sleep(wait_seconds)  
-
-            if status != 'COMPLETED':  
-                self.logger.info(f"Genie query did not complete after {max_retries} retries.")  
-                return f"Genie query did not complete after {max_retries} retries."
-
-            attachments = raw_get_value.json().get('attachments', [])  
-            if not attachments:  
-                self.logger.info(f"No attachments found in the Genie response.")  
-                return "No attachments found in the Genie response."
-
-            attachment_value = attachments[0]  
-            attachment_id = attachment_value.get('attachment_id')  
-            if not attachment_id:  
-                self.logger.info(f"No attachment_id found in the first attachment.")  
-                return "No attachment_id found in the first Genie attachment."
-
-            if 'text' in attachment_value:  
-                text_content = attachment_value['text'].get('content', '')  
-                self.logger.info(ftext_content)  
-                return text_content
-            
-            elif 'query' in attachment_value:  
-                query_description = attachment_value['query'].get('description', '')  
-                try:  
-                    query_results = get_genie_query_attachment_results(self.server_hostname, self.token, genie_space_id, conversation_id, message_id, attachment_id)  
-                    final_value = "Text: " + query_description + "\nQuery: " + query_results  
-                except Exception as e:  
-                    self.logger.info(f"Error retrieving query attachment results:", e)  
-                    final_value = query_description  
-                self.logger.info(f"Final Genie value: {final_value}")  
-                return final_value
-            else:  
-                self.logger.info(f"Failed to decode Genie results from the attachment.")  
-        else:  
-            try:  
-                error_message = response.json()  
-            except Exception:  
-                error_message = response.text  
-            self.logger.info(f"Error with Genie:", error_message)  
-            return f"Error with Genie: {error_message}"
-
     def _call_model_endpoint(self, messages, max_tokens=750):
 
         function_call_messages = messages.copy()                       # Copying messages to avoid modifying the original messages
@@ -288,18 +226,11 @@ class DatabricksChatbot:
 
                     function_name = tool_call.function.name
 
-                    # This part is hard coded for demo purpose only - normally would be dynamic function list
+                    # This part is "hard coded" for demo purpose only - normally would be dynamic function list
                     if "genie" in function_name:
                         self.logger.info(f"🧞‍♂️ Genie '{function_name }' is activated, please be patient")
                         genie_space_id = function_name.split('_')[1]
-
-
-                        host_raw = flask.request.headers.get('X-Forwarded-Host', 'dummy_host')
-                        self.server_hostname = convert_hostname_to_databricks_url(host_raw)
-                        client_id = os.getenv('DATABRICKS_CLIENT_ID')
-                        client_secret = os.getenv('DATABRICKS_CLIENT_SECRET')
-                        self.token = create_databricks_token(server_hostname = self.server_hostname, client_id = client_id, client_secret = client_secret)
-                        results = self.run_genie(genie_space_id = genie_space_id, prompt = function_arguments['prompt']) 
+                        results = run_genie(genie_space_id = genie_space_id, prompt = function_arguments['prompt'])
 
                     elif "devops" in function_name:
                         self.logger.info(f"DevOps is activated, please be patient")
@@ -318,15 +249,21 @@ class DatabricksChatbot:
                     # Append the processed payload
                     function_call_messages.append(payload)
 
-                    # Calling one more time model endpoint to clean Genie results
+                    # 📡 Calling model endpoint to clean the results
                     self.logger.info(f"📡 Calling model endpoint to clean the results: {function_call_messages}")
-                    results = call_chat_model(
-                        openai_client = self.openai_client,
-                        model_name=self.endpoint_name,
-                        messages=function_call_messages,
-                        max_tokens=max_tokens,
-                        tools = self.tools
-                        ).choices[0].message.content
+
+                    call_kwargs = {
+                        "openai_client": self.openai_client,
+                        "model_name": self.endpoint_name,
+                        "messages": function_call_messages,
+                        "max_tokens": max_tokens
+                    }
+
+                    # Claude 3.7 Sonnet requires tools to be activated
+                    if self.endpoint_name == 'databricks-claude-3-7-sonnet':
+                        call_kwargs["tools"] = self.tools
+
+                    results = call_chat_model(**call_kwargs).choices[0].message.content
 
             else:
                 results = response.choices[0].message.content
