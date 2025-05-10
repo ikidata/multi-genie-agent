@@ -207,22 +207,7 @@ class DatabricksChatbot:
                     elif "devops" in function_name:
                         print("DevOps is activated, please be patient")
                         results = create_devops_ticket(content = function_arguments['content'], connection = self.devops_connection)
-                    
-                    elif "documentation" in function_name:
-                        print("Documentation is activated, please be patient")
-                        # Fetch fabricated documentation
-                        documentation_content = get_documentation()
-                        messages[-1]['content'] += f"\n Context data: {documentation_content}"
 
-                        results = call_chat_model(
-                        openai_client=self.openai_client,
-                        model_name=self.endpoint_name,
-                        messages=messages,
-                        max_tokens=500,
-                        ).choices[0].message.content
-
-                        # Remove the temporary context data from the message  
-                        messages[-1]['content'] = messages[-1]['content'].replace(f"\n Context data: {documentation_content}", "")  
                     else:
                         raise Exception(f"An error occurred - function not found: {function_name}")
 

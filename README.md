@@ -28,7 +28,6 @@ Since Databricks offers good pre-built templates for creating apps, the Dash cha
 -   databricks_genie_space - Prebuilt Genie Spaces which is built on top of System Tables (outside of this repo scope)
 -   customer_data_genie_space - Prebuilt Genie Spaces which is built on top fabricated customer data (outside of this repo scope)
 -   create_update_devops_ticket - Create / Update Azure DevOps tickets (capabilities limited for demo purposes)
--   get_documentation - Get fabricated documentation information. Purpose to demonstrate internal documentation usage in the solution.
 
 ## Prerequisites and Installation 
 
@@ -47,7 +46,6 @@ The deployment notebook automatically deploys Databricks apps, and after grantin
 ## Limitations
 - Keep in mind that this is for demo purposes only. Although it gives a clear understanding of how you can use it as a template for further development.
 - For example, DevOps repo modification is limited to creating one epic with body changes only. However, you can see from the code how easy it is to start implementing more sophisticated features like commenting based on company documentation, adding and closing bug tickets automatically, etc.
-- The documentation part is added only to inspire further development on internal documentation automation (works well with Azure DevOps / Confluence), and there are multiple great approaches:
     - RAG: Create an automated data processing pipeline and store it as a vector index.
     - REST API calls: Use a dynamic approach and fetch documentation using a REST API approach (requires good documentation mapping).
     - Extended prompts: Current logic. Now that LLM's context window is getting so big, RAG isn't even needed in all cases.

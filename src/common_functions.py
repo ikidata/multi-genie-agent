@@ -141,24 +141,6 @@ def create_config(secret_scope: str, databricks_token_secret_value: str, databri
             }  
         } 
     
-    tools['get_documentation'] = {  
-            "type": "function",  
-            "function": {  
-                "name": f"get_documentation",  
-                "description": "Get internal documentation for data enrichment",  
-                "parameters": {  
-                    "type": "object",  
-                    "properties": {  
-                        "activation": {  
-                            "type": "string",  
-                            "description": "Yes or No"  
-                        }  
-                    },  
-                    "required": ["activation"],  
-                }
-            }  
-        } 
-    
     if devops_connection != "":
         tools['create_update_devops_ticket'] = {  
                 "type": "function",  
