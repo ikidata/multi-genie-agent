@@ -13,7 +13,7 @@ from general_functions import call_chat_model, get_documentation
 from devops_functions import create_devops_ticket
 
 class DatabricksChatbot:
-    def __init__(self, app, endpoint_name, databricks_host_secret, databricks_token_secret, height='600px'):
+    def __init__(self, app, endpoint_name, height='600px'):
         self.app = app
         self.endpoint_name = endpoint_name
         self.databricks_host_secret = databricks_host_secret
@@ -52,18 +52,13 @@ class DatabricksChatbot:
 
     def get_authentication(self) -> None:
         """
-        Fetches authentication details from dbutils and activates the OpenAI client.
+        Fetches authentication using SDK and activates the OpenAI client.
 
         Raises:
             RuntimeError: If any required authentication detail is missing or invalid.
         """
         try:
-            self.base_url = f"https://{self.databricks_host_secret}/serving-endpoints"
-            if not self.base_url:
-                raise ValueError("Databricks workspace URL is missing or invalid.")
-
-            self.openai_client = OpenAI(api_key=self.databricks_token_secret, base_url=self.base_url)
-
+            self.openai_client = self.w.serving_endpoints.get_open_ai_client()
         except Exception as e:
             # Log the error and raise a runtime error with a meaningful message
             error_message = f"Failed to fetch authentication details: {str(e)}"

@@ -17,7 +17,7 @@ assert databricks_token_secret, 'DATABRICKS_TOKEN_SECRET must be set in app.yaml
 app = dash.Dash(__name__, external_stylesheets=[dbc.themes.FLATLY])
 
 # Create the chatbot component with a specified height
-chatbot = DatabricksChatbot(app=app, endpoint_name=serving_endpoint, databricks_host_secret = databricks_host_secret, databricks_token_secret = databricks_token_secret, height='600px')
+chatbot = DatabricksChatbot(app=app, endpoint_name=serving_endpoint, height='600px')
 
 # Define the app layout
 app.layout = dbc.Container([
