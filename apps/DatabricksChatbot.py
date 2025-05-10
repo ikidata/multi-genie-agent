@@ -30,7 +30,6 @@ class DatabricksChatbot:
         
         self.get_configs()    
         self.get_authentication()
-        self.layout = self._create_layout()
         self._create_callbacks()
         self._add_custom_css()
 
@@ -70,23 +69,34 @@ class DatabricksChatbot:
             raise RuntimeError(error_message)  
         print("OpenAI API client was initialized successfully")        
 
-    def _create_layout(self):
-        return html.Div([
-            html.H2('Chat with multiple Genies', className='chat-title mb-3'),
-            dbc.Card([
-                dbc.CardBody([
-                    html.Div(id='chat-history', className='chat-history'),
-                ], className='d-flex flex-column chat-body')
-            ], className='chat-card mb-3'),
-            dbc.InputGroup([
-                dbc.Input(id='user-input', placeholder='Type your message here...', type='text'),
-                dbc.Button('Send', id='send-button', color='success', n_clicks=0, className='ms-2'),
-                dbc.Button('Clear', id='clear-button', color='danger', n_clicks=0, className='ms-2'),
-            ], className='mb-3'),
-            dcc.Store(id='assistant-trigger'),
-            dcc.Store(id='chat-history-store'),
-            html.Div(id='dummy-output', style={'display': 'none'}),
-        ], className='d-flex flex-column chat-container p-3')
+    def get_layout_for_user(self, user_name):
+            self.user_name = user_name  # ✅ Store it for later use
+            user_name_cleaned = user_name.split('@')[0].capitalize()
+            default_message = f"Hello {user_name_cleaned}, welcome! Chat with Multi-Genie agentic solution on Databricks 🤖"
+
+            return html.Div([
+                html.H2(f'User: {user_name_cleaned}👤  Chat with multiple Genie spaces at once.', className='chat-title mb-3'),
+                html.Div([
+                    "This is a demo version of multi-genie solution."
+                ]),
+                dbc.Card([
+                    dbc.CardBody([
+                        html.Div([
+                            html.Div(default_message, className='chat-message assistant-message')
+                        ], id='chat-history', className='chat-history'),
+                    ], className='d-flex flex-column chat-body')
+                ], className='chat-card mb-3'),
+
+                dbc.InputGroup([
+                    dbc.Input(id='user-input', placeholder='Type your message here...', type='text'),
+                    dbc.Button('Send', id='send-button', color='success', n_clicks=0, className='ms-2'),
+                    dbc.Button('Clear', id='clear-button', color='danger', n_clicks=0, className='ms-2'),
+                ], className='mb-3'),
+                dcc.Store(id='assistant-trigger'),
+                dcc.Store(id='chat-history-store'),
+                html.Div(id='dummy-output', style={'display': 'none'}),
+            ], className='d-flex flex-column chat-container p-3')
+
 
     def _create_callbacks(self):
         @self.app.callback(
