@@ -1,4 +1,3 @@
-
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.dashboards import GenieAPI
 import json
@@ -30,27 +29,25 @@ def extract_column_values_string(response_obj):
     # Pair columns with their corresponding values and return as formatted string
     return ', '.join(f"{col}: {val}" for col, val in zip(columns, values))
 
-def post_genie_and_wait(genie_space_id: str, prompt: str, w: object, timeout_min: int = 1) -> dict:
+def post_genie(genie_space_id: str, prompt: str, w: object) -> dict:
     """
-    Starts a new Genie conversation in a specified space and waits for the response.
+    Starts a new Genie conversation in a specified space.
 
     Args:
         genie_space_id (str): The ID of the Genie space where the conversation should occur.
         prompt (str): The user input or message to send to the Genie.
         w (object): A Databricks WorkspaceClient object with access to the Genie API.
-        timeout_min (int, optional): Maximum time to wait for a response in minutes. Default is 1 minute.
 
     Returns:
         dict: The full Genie response object containing the output of the conversation.
     """
-    response = w.genie.start_conversation_and_wait(
+    response = w.genie.start_conversation(
         space_id=genie_space_id,
-        content=prompt,
-        timeout=timedelta(minutes=timeout_min)
+        content=prompt
     )
     return response
 
-def get_genie_message(genie_space_id: str,  w: object, conversation_id: str, message_id: str) -> dict:
+def get_genie_message(genie_space_id: str,  w: object, conversation_id: str, message_id: str, sleeper_time: float = 0.7, max_retries: int =  45) -> dict:
     """
     Retrieves a specific Genie message and its associated query results (if any) from a conversation.
 
@@ -59,6 +56,8 @@ def get_genie_message(genie_space_id: str,  w: object, conversation_id: str, mes
         w (object): A Databricks WorkspaceClient instance with Genie API access.
         conversation_id (str): The ID of the Genie conversation.
         message_id (str): The ID of the specific message within the conversation to fetch.
+        sleeper_time (float): The time to wait between retries when polling for the message status (seconds).
+        max_retries (int): The maximum number of retries before giving up on the message status.
 
     Returns:
         str: A formatted string combining any text, query, and query result found in the message attachments.
@@ -66,11 +65,24 @@ def get_genie_message(genie_space_id: str,  w: object, conversation_id: str, mes
     """
     try:
         combinated_values = ""
-        response = w.genie.get_message(
-            space_id=genie_space_id,
-            conversation_id=conversation_id,
-            message_id = message_id
-        )
+        response_status = ""
+        current_try = 1
+        # Looping until response is received
+        while response_status != "COMPLETED" and current_try <= max_retries:
+            response = w.genie.get_message(
+                space_id=genie_space_id,
+                conversation_id=conversation_id,
+                message_id = message_id
+            )
+            print("⏳ Waiting for completion... (try", current_try, "of", max_retries,")") 
+            response_status = response.status.value
+            current_try += 1
+            time.sleep(0.7)
+
+        if response_status != 'COMPLETED':  
+            print( f"Genie query did not complete after {max_retries} retries.")  
+            return f"Genie query did not complete after {max_retries} retries."
+            
         # Iterate over all attachments to extract data or fallback text
         for attachment in response.attachments:
             attachment_id = attachment.attachment_id
@@ -97,14 +109,15 @@ def get_genie_message(genie_space_id: str,  w: object, conversation_id: str, mes
     except Exception as e:
         return f"Error while fetching Genie's values: {e}"
 
-def run_genie(genie_space_id: str, prompt: str, timeout_min: int = 1) -> str:
+def run_genie(genie_space_id: str, prompt: str, sleeper_time: float = 0.7, max_retries: int =  30) -> str:
     """
     Executes a full Genie interaction by posting a prompt and retrieving the final message output.
 
     Args:
         genie_space_id (str): The ID of the Genie space to interact with.
         prompt (str): The prompt/question to send to the Genie.
-        timeout_min (int, optional): Time in minutes to wait for a Genie response. Defaults to 1.
+        sleeper_time (float): The time to wait between retries when polling for the message status (seconds).
+        max_retries (int): The maximum number of retries before giving up on the message status.
 
     Returns:
         str: The final text or query-based response from Genie. If an error occurs, an error message is returned.
@@ -114,14 +127,14 @@ def run_genie(genie_space_id: str, prompt: str, timeout_min: int = 1) -> str:
         w = get_workspace_client()
         
         # Start a conversation and wait for Genie to respond
-        response = post_genie_and_wait(genie_space_id, prompt, w) 
+        response = post_genie(genie_space_id, prompt, w) 
 
         # Extract conversation and message IDs for follow-up query 
         conversation_id = response.conversation_id
-        message_id = response.id
+        message_id = response.message_id
 
         # Retrieve and return the processed response
-        final_value = get_genie_message(genie_space_id, w, conversation_id, message_id)
+        final_value = get_genie_message(genie_space_id, w, conversation_id, message_id, sleeper_time, max_retries)
     except Exception as e:
         final_value = f"Error during operating Genie: {e}"
     
