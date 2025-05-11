@@ -241,13 +241,15 @@ class DatabricksChatbot:
 
                     # This part is "hard coded" for demo purpose only - normally would be dynamic function list
                     if "genie" in function_name:
-                        self.logger.info(f"[{user_name}] 🧞‍♂️ Genie '{function_name }' is activated, please be patient")
+                        tool_prompt = function_arguments['prompt']
+                        self.logger.info(f"[{user_name}] 🧞‍♂️ Genie '{function_name}' is activated, please be patient. \nUsed Genie prompt: {tool_prompt}")
                         genie_space_id = function_name.split('_')[1]
-                        results = run_genie(genie_space_id = genie_space_id, prompt = function_arguments['prompt'])
+                        results = run_genie(genie_space_id = genie_space_id, prompt = tool_prompt)
 
                     elif "devops" in function_name:
-                        self.logger.info(f"[{user_name}] DevOps is activated, please be patient")
-                        results = create_devops_ticket(content = function_arguments['content'], connection = self.devops_connection)
+                        tool_content = function_arguments['content']
+                        self.logger.info(f"[{user_name}] DevOps is activated, please be patient\nUsed content: {tool_content}")
+                        results = create_devops_ticket(content = tool_content, connection = self.devops_connection)
 
                     else:
                         raise Exception(f"An error occurred - function not found: {function_name}")

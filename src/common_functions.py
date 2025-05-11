@@ -176,7 +176,7 @@ def create_config(databricks_genie_space_id_list: dict[str], devops_connection: 
             } 
 
     config = {  
-        "system_prompt": "Only invoke a Genie space when the user prompt clearly aligns with the specific capability of that space (e.g., SQL generation, data exploration, reporting). Do not default to Genie unless the intent is explicit or strongly implied by the request. When invoking a Genie space, forward the prompt unchanged to preserve user intent. If processing a response from Genie, clean and format the output appropriately, and always indicate which Genie space was used. If the user prompt suggests a relevant task but Genie did not return a valid output, clearly state that no result was returned by Genie.",    
+        "system_prompt": "Trigger the appropriate Genie space only when the user’s request clearly specifies or implies a domain or task that matches the expertise of an available Genie space. Select the Genie space based on the domain indicated in the user’s prompt—do not use Genie unless there is a clear domain alignment. When invoking a Genie space, forward the user's prompt exactly as given to preserve intent. After receiving a response, format and clean the output as needed, and always indicate which Genie space was used. If Genie does not provide a relevant result, clearly inform the user that no output was returned from the specified Genie space.",    
         "devops_connection": devops_connection,
         "tools": tools
     }  
@@ -223,7 +223,7 @@ def check_deployment_status(token, server_hostname, app_name, payload, max_tries
     print(f"Deployment of {app_name} did not complete after {max_tries} attempts.")  
     return f"Deployment of {app_name} did not complete after {max_tries} attempts."
 
-def deploy_databricks_apps(name: str, model_name: str = "databricks-meta-llama-3-3-70b-instruct") -> None:  
+def deploy_databricks_apps(name: str, model_name: str = "databricks-claude-3-7-sonnet") -> None:  
     """
     Deploys a Databricks application with the specified model and monitors its deployment status.
 
