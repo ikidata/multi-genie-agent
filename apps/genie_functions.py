@@ -109,7 +109,7 @@ def get_genie_message(genie_space_id: str,  w: object, conversation_id: str, mes
     except Exception as e:
         return f"Error while fetching Genie's values: {e}"
 
-def run_genie(genie_space_id: str, prompt: str, sleeper_time: float = 0.7, max_retries: int =  30) -> str:
+def run_genie(genie_space_id: str, prompt: str, sleeper_time: float = 0.7, max_retries: int =  45) -> str:
     """
     Executes a full Genie interaction by posting a prompt and retrieving the final message output.
 
