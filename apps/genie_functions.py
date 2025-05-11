@@ -12,7 +12,7 @@ def get_workspace_client():
     return WorkspaceClient()
 
 def extract_column_values_string(response_obj):
-        """
+    """
     Extracts and formats the first row of column-value pairs from a response object.
 
     Args:
