@@ -7,7 +7,19 @@ from dbruntime.databricks_repl_context import get_context
 from databricks.sdk import WorkspaceClient
 
 def create_devops_connection(name: str, secret_scope: str, devops_token: str, devops_organization: str, devops_project: str): 
+    """
+    Creates a Unity Catalog HTTP connection in Databricks to Azure DevOps.
 
+    Args:
+        name (str): The name of the connection to be created.
+        secret_scope (str): The name of the secret scope where the DevOps token is stored.
+        devops_token (str): The key name of the DevOps token in the secret scope.
+        devops_organization (str): The Azure DevOps organization name.
+        devops_project (str): The Azure DevOps project name.
+
+    Returns:
+        None
+    """
     # Retrieve the Databricks server hostname from the context  
     databricks_server_hostname = get_context().browserHostName
     databricks_server_hostname = f"https://{databricks_server_hostname}"
@@ -174,6 +186,19 @@ def create_config(databricks_genie_space_id_list: dict[str], devops_connection: 
 
 
 def check_deployment_status(token, server_hostname, app_name, payload, max_tries=25):  
+    """
+    Polls the deployment status of an application until it becomes active or the retry limit is reached.
+
+    Args:
+        token (str): Authentication token for the API.
+        server_hostname (str): Hostname of the server where the app is being deployed.
+        app_name (str): Name of the application being deployed.
+        payload (dict): The payload to send with the API request.
+        max_tries (int, optional): Maximum number of polling attempts. Defaults to 25.
+
+    Returns:
+        dict or str: Deployment result if successful, or an error message string if the deployment doesn't complete in time.
+    """
     tries = 0  
       
     while tries < max_tries:  
@@ -198,7 +223,17 @@ def check_deployment_status(token, server_hostname, app_name, payload, max_tries
     print(f"Deployment of {app_name} did not complete after {max_tries} attempts.")  
     return f"Deployment of {app_name} did not complete after {max_tries} attempts."
 
-def deploy_databricks_apps(name: str, model_name: str = "databricks-claude-3-7-sonnet") -> None:  
+def deploy_databricks_apps(name: str, model_name: str = "databricks-meta-llama-3-3-70b-instruct") -> None:  
+    """
+    Deploys a Databricks application with the specified model and monitors its deployment status.
+
+    Args:
+        name (str): Name of the application to be deployed.
+        model_name (str, optional): Name of the model serving endpoint to attach. Defaults to Claude 3 Sonnet.
+
+    Returns:
+        None
+    """
     max_tries = 25  
   
     # Load configuration data  

@@ -20,13 +20,12 @@ This agentic solution demonstrates the true power of the Multi-Genie-Agent appro
 
 Remember, the goal of this solution is to demonstrate possibilities and provide new insights, rather than offering production-ready solutions. Take the insights gained and continue developing your own solutions further. Because of the nature of this PoC, many essential parts are missing, such as proper validations and more advanced functionalities.
 
-Genie subagents are limited to 30 seconds before timeout. The Databricks Apps model endpoint acts as an executor agent, passing prompts forward to Genie spaces and back. It uses a simple function call agentic approach with temporarily extended memory, wrapping Genie outputs before returning the value. All phases are visible in the logs, but the end user can only see the final result. The executor agent has the freedom to choose subagents, so tool metadata is crucial for smooth operation. Thanks to short-term memory, it's possible to ask questions from different Genie spaces and then pass them to DevOps.
+Genie subagents are limited to one (1) minute before timeout. The Databricks Apps model endpoint acts as an executor agent, passing prompts forward to Genie spaces and back. It uses a simple function call agentic approach with temporarily extended memory, wrapping Genie outputs before returning the value. You can easily switch the model during or after deploying the apps. All phases are visible in the logs on a user level, but the end user can only see the final result on the apps. The executor agent has the freedom to choose subagents, so tool metadata is crucial for smooth operation. Thanks to session memory, it's possible to ask questions from different Genie spaces and then pass them to DevOps.
 
-Since Databricks offers good pre-built templates for creating apps, the Dash chatbot template has been used here. On top of it, more sophisticated features have been built, but the core app functionality (like callbacks) and visualization have been modified only slightly.
+Since Databricks offers good pre-built templates for creating apps, the Dash chatbot template has been used here. On top of it, more sophisticated features have been built to improve user experience.
 
 ### Used tools in the example:
--   databricks_genie_space - Prebuilt Genie Spaces which is built on top of System Tables (outside of this repo scope)
--   customer_data_genie_space - Prebuilt Genie Spaces which is built on top fabricated customer data (outside of this repo scope)
+-   genie_123456*   - Depending how many Genie spaces you decide to use, those will be automatically converted to tools during deployment
 -   create_update_devops_ticket - Create / Update Azure DevOps tickets (capabilities limited for demo purposes)
 
 **Keep in mind that you can use more Genie spaces than just two.**
@@ -38,8 +37,8 @@ The deployment notebook contains a more detailed process of the required steps t
 **Implementation process**
 - Create Genie spaces that you want to use.
 - Clone the repo to your Databricks workspace (instructions https://docs.databricks.com/aws/en/repos/git-operations-with-repos).
-- Populate the deployment notebook and follow the instructions (e.g., creating connections and deploying apps). The DevOps tool is optional — you can leave the DevOps variables empty ("") and it won't be created.
-- Grant the required permissions to the Apps Service Principal (for Unity Catalog connections, used Genie spaces, and model endpoints)
+- Populate the deployment notebook and follow the instructions. The DevOps tool is optional — you can leave the DevOps variables empty ("") and it won't be created.
+- Grant the required permissions to the Apps Service Principal (for used Genie spaces, tables Genie uses and model endpoints)
 
 ## Usage
 

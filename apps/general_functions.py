@@ -31,31 +31,6 @@ def call_chat_model(openai_client: any, model_name: str, messages: list, tempera
         print(f"Model endpoint calling error: {e}")
         return f"Model endpoint calling error: {e}"
 
-
-def create_databricks_token(server_hostname: str, client_id: str, client_secret: str) -> str:
-    """
-    Creates Databricks token with all-apis scope
-    """
-    # Construct the token endpoint URL 
-    token_endpoint_url = f"{server_hostname}/oidc/v1/token" 
-
-    # Prepare the data for the POST request 
-    data = { 
-        'grant_type': 'client_credentials', 
-        'scope': 'all-apis' 
-    } 
-
-    # Make the POST request to get the access token 
-    response = requests.post(token_endpoint_url, data=data, auth=(client_id, client_secret)) 
-
-    # Check if the request was successful 
-    assert response.status_code == 200, f"Failed to fetch Databricks access token \nError code: {response.status_code}\nError message: {response.json()}"
-
-    # Parse the JSON response to get the access token 
-    token = response.json().get('access_token') 
-    return token
-
-
 def run_rest_api(server_hostname: str, token: str, api_version: str, api_command: str, action_type: str,  payload: dict = {}) -> str:
     """
     Run Databricks REST API endpoint dynamically
@@ -71,18 +46,3 @@ def run_rest_api(server_hostname: str, token: str, api_version: str, api_command
         return resp
     except Exception as e:
         return e
-
-def convert_hostname_to_databricks_url(hostname: str) -> str:
-    """
-    Converts a Databricks Apps hostname to the standard workspace URL format.
-    
-    Example:
-        'chatbotxd-15.14.azure.databricksapps.com' -> 'https://adb-15.14.azuredatabricks.net'
-    """
-    # Extract the numeric workspace ID from the hostname
-    match = re.search(r'-(\d+\.\d+)\.azure\.databricksapps\.com', hostname)
-    if not match:
-        raise ValueError("Hostname does not match expected Databricks apps pattern.")
-
-    workspace_id = match.group(1)
-    return f"https://adb-{workspace_id}.azuredatabricks.net"

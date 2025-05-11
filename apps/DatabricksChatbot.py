@@ -11,7 +11,7 @@ import flask
 import logging
 
 from genie_functions import run_genie
-from general_functions import call_chat_model, convert_hostname_to_databricks_url, create_databricks_token
+from general_functions import call_chat_model,
 from devops_functions import create_devops_ticket
 
 class DatabricksChatbot:
