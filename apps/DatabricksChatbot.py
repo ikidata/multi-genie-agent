@@ -69,7 +69,7 @@ class DatabricksChatbot:
         self.system_prompt = config_data['system_prompt']
         self.devops_connection = config_data['devops_connection']
         self.tools = [value for key, value in config_data['tools'].items()]
-        self.logger.info(f"Configs were fetched successfully")
+        self.logger.info("Configs were fetched successfully")
 
 
     def get_authentication(self) -> None:
@@ -85,10 +85,10 @@ class DatabricksChatbot:
             # Log the error and raise a runtime error with a meaningful message
             error_message = f"Failed to fetch authentication details: {str(e)}"
             raise RuntimeError(error_message)  
-        self.logger.info(f"OpenAI API client was initialized successfully")        
+        self.logger.info("OpenAI API client was initialized successfully")        
 
     def _create_layout(self, user_name):
-        user_name = user_name  # ✅ Store it for later use
+        user_name = user_name  # Fetching user name for the session
 
         user_name_cleaned = user_name.split('@')[0].capitalize()
         default_message = f"Hello {user_name_cleaned}! Welcome to chat with Multi-Genie agentic solution on Databricks 🤖"
@@ -113,6 +113,7 @@ class DatabricksChatbot:
             dcc.Store(id='assistant-trigger'),
             dcc.Store(id='chat-history-store'),
             dcc.Store(id='processing-flag', data=False),
+            dcc.Store(id='user-name-store', data=user_name),  # Store the user name
             html.Div(id='dummy-output', style={'display': 'none'}),
         ], className='d-flex flex-column chat-container p-3')
 
@@ -129,7 +130,7 @@ class DatabricksChatbot:
             State('chat-history-store', 'data'),
             prevent_initial_call=True
         )
-        def update_chat(send_clicks, user_submit, user_input, chat_history):
+        def update_chat(send_clicks, user_submit, user_input, chat_history):  
             if not user_input:
                 return dash.no_update, dash.no_update, dash.no_update, dash.no_update, False
 
@@ -149,9 +150,10 @@ class DatabricksChatbot:
             Output('processing-flag', 'data', allow_duplicate=True),
             Input('assistant-trigger', 'data'),
             State('chat-history-store', 'data'),
+            State('user-name-store', 'data'),    
             prevent_initial_call=True
         )
-        def process_assistant_response(trigger, chat_history):
+        def process_assistant_response(trigger, chat_history, user_store):
             if not trigger or not trigger.get('trigger'):
                 return dash.no_update, dash.no_update
 
@@ -162,14 +164,14 @@ class DatabricksChatbot:
                 return dash.no_update, dash.no_update, False
 
             try:
-                assistant_response = self._call_model_endpoint(chat_history)
+                assistant_response = self._call_model_endpoint(chat_history, user_store)
                 chat_history.append({
                     'role': 'assistant',
                     'content': assistant_response
                 })
             except Exception as e:
                 error_message = f'Error: {str(e)}'
-                self.logger.info(error_message)  # Log the error for debugging
+                self.logger.info(f"{[{user_store}]} {error_message}")  # Log the error for debugging
                 chat_history.append({
                     'role': 'assistant',
                     'content': error_message
@@ -193,17 +195,17 @@ class DatabricksChatbot:
             prevent_initial_call=True
         )
         def clear_chat(n_clicks):
-            self.logger.info(f'Clearing chat')
+            self.logger.info(f"Clearing chat")
             if n_clicks:
                 return [], []
             return dash.no_update, dash.no_update
 
-    def _call_model_endpoint(self, messages, max_tokens=750):
+    def _call_model_endpoint(self, messages, user_name, max_tokens=750):
 
         function_call_messages = messages.copy()                       # Copying messages to avoid modifying the original messages
-        self.logger.info(f"🤖 Starting to process the next messages: {messages}")
+        self.logger.info(f"[{user_name}] 🤖 Starting to process the next messages: {messages}")
         try:
-            self.logger.info(f'Calling model endpoint...')
+            self.logger.info(f"[{user_name}] Calling model endpoint...")
 
 
             response = call_chat_model(
@@ -230,7 +232,7 @@ class DatabricksChatbot:
                 function_call_messages.append(payload)        
 
                 for tool_call in response.choices[0].message.tool_calls:
-                    self.logger.info(f"🛠 Tools are activated")    
+                    self.logger.info(f"[{user_name}] 🛠 Tools are activated")    
 
                     # Parse the function arguments
                     function_arguments = json.loads(tool_call.function.arguments)
@@ -239,12 +241,12 @@ class DatabricksChatbot:
 
                     # This part is "hard coded" for demo purpose only - normally would be dynamic function list
                     if "genie" in function_name:
-                        self.logger.info(f"🧞‍♂️ Genie '{function_name }' is activated, please be patient")
+                        self.logger.info(f"[{user_name}] 🧞‍♂️ Genie '{function_name }' is activated, please be patient")
                         genie_space_id = function_name.split('_')[1]
                         results = run_genie(genie_space_id = genie_space_id, prompt = function_arguments['prompt'])
 
                     elif "devops" in function_name:
-                        self.logger.info(f"DevOps is activated, please be patient")
+                        self.logger.info(f"[{user_name}] DevOps is activated, please be patient")
                         results = create_devops_ticket(content = function_arguments['content'], connection = self.devops_connection)
 
                     else:
@@ -261,7 +263,7 @@ class DatabricksChatbot:
                     function_call_messages.append(payload)
 
                     # 📡 Calling model endpoint to clean the results
-                    self.logger.info(f"📡 Calling model endpoint to clean the results: {function_call_messages}")
+                    self.logger.info(f"[{user_name}] 📡 Calling model endpoint to clean the results: {function_call_messages}")
 
                     call_kwargs = {
                         "openai_client": self.openai_client,
@@ -278,12 +280,12 @@ class DatabricksChatbot:
 
             else:
                 results = response.choices[0].message.content
-                self.logger.info(f'✅ Model endpoint called successfully')
-            self.logger.info(f"💾 Current messages: {messages}")
-            self.logger.info(f"🤖 Returning results: {results}")
+                self.logger.info(f'[{user_name}] ✅ Model endpoint called successfully')
+            self.logger.info(f"[{user_name}] 💾 Current messages: {messages}")
+            self.logger.info(f"[{user_name}] 🤖 Returning results: {results}")
             return results
         except Exception as e:
-            self.logger.info(f'Error calling model endpoint: {str(e)}')
+            self.logger.info(f'[{user_name}] Error calling model endpoint: {str(e)}')
             raise
 
     def _format_chat_display(self, chat_history):  
