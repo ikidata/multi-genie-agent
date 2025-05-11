@@ -112,6 +112,7 @@ class DatabricksChatbot:
             ], className='mb-3'),
             dcc.Store(id='assistant-trigger'),
             dcc.Store(id='chat-history-store'),
+            dcc.Store(id='processing-flag', data=False),
             html.Div(id='dummy-output', style={'display': 'none'}),
         ], className='d-flex flex-column chat-container p-3')
 
@@ -121,6 +122,7 @@ class DatabricksChatbot:
             Output('chat-history', 'children', allow_duplicate=True),
             Output('user-input', 'value'),
             Output('assistant-trigger', 'data'),
+            Output('processing-flag', 'data'),
             Input('send-button', 'n_clicks'),
             Input('user-input', 'n_submit'),
             State('user-input', 'value'),
@@ -129,7 +131,7 @@ class DatabricksChatbot:
         )
         def update_chat(send_clicks, user_submit, user_input, chat_history):
             if not user_input:
-                return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                return dash.no_update, dash.no_update, dash.no_update, dash.no_update, False
 
             # Initialize chat_history with system message if it doesn't exist  
             if not chat_history:  
@@ -139,11 +141,12 @@ class DatabricksChatbot:
             chat_history.append({'role': 'user', 'content': user_input})
             chat_display = self._format_chat_display(chat_history)
             chat_display.append(self._create_typing_indicator())
-            return chat_history, chat_display, '', {'trigger': True}
+            return chat_history, chat_display, '', {'trigger': True}, True
 
         @self.app.callback(
             Output('chat-history-store', 'data', allow_duplicate=True),
             Output('chat-history', 'children', allow_duplicate=True),
+            Output('processing-flag', 'data', allow_duplicate=True),
             Input('assistant-trigger', 'data'),
             State('chat-history-store', 'data'),
             prevent_initial_call=True
@@ -156,7 +159,7 @@ class DatabricksChatbot:
             if (not chat_history or not isinstance(chat_history[-1], dict)
                     or 'role' not in chat_history[-1]
                     or chat_history[-1]['role'] != 'user'):
-                return dash.no_update, dash.no_update
+                return dash.no_update, dash.no_update, False
 
             try:
                 assistant_response = self._call_model_endpoint(chat_history)
@@ -173,7 +176,15 @@ class DatabricksChatbot:
                 })
 
             chat_display = self._format_chat_display(chat_history)
-            return chat_history, chat_display
+            return chat_history, chat_display, False
+        
+        @self.app.callback(
+            Output('user-input', 'disabled'),
+            Output('send-button', 'disabled'),
+            Input('processing-flag', 'data')
+        )
+        def toggle_input_disable(is_processing):
+            return is_processing, is_processing
 
         @self.app.callback(
             Output('chat-history-store', 'data', allow_duplicate=True),
