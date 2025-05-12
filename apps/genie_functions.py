@@ -47,7 +47,7 @@ def post_genie(genie_space_id: str, prompt: str, w: object) -> dict:
     )
     return response
 
-def get_genie_message(genie_space_id: str,  w: object, conversation_id: str, message_id: str, sleeper_time: float = 0.7, max_retries: int =  45) -> dict:
+def get_genie_message(genie_space_id: str,  w: object, conversation_id: str, message_id: str, sleeper_time: float = 0.7, max_retries: int =  60) -> dict:
     """
     Retrieves a specific Genie message and its associated query results (if any) from a conversation.
 
