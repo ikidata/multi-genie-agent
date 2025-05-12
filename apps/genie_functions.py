@@ -1,7 +1,8 @@
 from databricks.sdk import WorkspaceClient
-from databricks.sdk.service.serving import ExternalFunctionRequestHttpMethod
+from databricks.sdk.service.dashboards import GenieAPI
 import json
 import time
+from datetime import timedelta
 
 def get_workspace_client():
     """
@@ -9,146 +10,132 @@ def get_workspace_client():
     """
     return WorkspaceClient()
 
-def post_genie(genie_space_id: str, genie_conn: str, prompt: str) -> dict:
+def extract_column_values_string(response_obj):
     """
-    Starts a new conversation with Genie by sending a prompt.
+    Extracts and formats the first row of column-value pairs from a response object.
 
-    Args:  
-        prompt (str): The prompt text to send to Genie.  
-    
-    Returns:  
-        dict: The HTTP response from the POST request.  
-    """  
-    client = get_workspace_client()  
-    response = client.serving_endpoints.http_request(  
-        conn=genie_conn,  
-        method=ExternalFunctionRequestHttpMethod.POST,  
-        path=f"/2.0/genie/spaces/{genie_space_id}/start-conversation",  
-        json={"content": prompt}  
-    )  
-    return response  
- 
-def get_genie_query_results(genie_space_id: str, genie_conn: str, conversation_id: str, message_id: str) -> dict:
+    Args:
+        response_obj: An object containing a SQL or query result with schema and data.
+
+    Returns:
+        str: A comma-separated string of column-value pairs, e.g. "col1: val1, col2: val2".
     """
-    Retrieves the current status and any early results for a Genie conversation.
+    # Extract column names from the response schema
+    columns = [col.name for col in response_obj.statement_response.manifest.schema.columns]
 
+    # Get the first row of data values
+    values = response_obj.statement_response.result.data_array[0]
 
-    Args:  
-        conversation_id (str): The conversation ID received after the prompt was sent.  
-        message_id (str): The message ID received after the prompt was sent.  
-    
-    Returns:  
-        dict: The parsed JSON response from the GET request.  
-    """  
-    client = get_workspace_client()  
-    response = client.serving_endpoints.http_request(  
-        conn=genie_conn,  
-        method=ExternalFunctionRequestHttpMethod.GET,  
-        path=f"/2.0/genie/spaces/{genie_space_id}/conversations/{conversation_id}/messages/{message_id}"  
-    )  
-    return response.json()  
- 
-def get_genie_query_attachment_results(genie_space_id: str, genie_conn: str, conversation_id: str, message_id: str, attachment_id: str) -> str:
+    # Pair columns with their corresponding values and return as formatted string
+    return ', '.join(f"{col}: {val}" for col, val in zip(columns, values))
+
+def post_genie(genie_space_id: str, prompt: str, w: object) -> dict:
     """
-    Retrieves query results from a specific attachment from Genie.
+    Starts a new Genie conversation in a specified space.
 
-    Args:  
-        conversation_id (str): The conversation ID.  
-        message_id (str): The message ID.  
-        attachment_id (str): The attachment ID from which to fetch the query result.  
-    
-    Returns:  
-        str: A string representation of the query result.  
-    """  
-    client = get_workspace_client()  
-    response = client.serving_endpoints.http_request(  
-        conn=genie_conn,  
-        method=ExternalFunctionRequestHttpMethod.GET,  
-        path=f"/2.0/genie/spaces/{genie_space_id}/conversations/{conversation_id}/messages/{message_id}/attachments/{attachment_id}/query-result"  
-    )  
-    data_array = response.json()['statement_response']['result']['data_array']  
-    return str(data_array)  
- 
-def run_genie(genie_space_id: str, genie_conn: str, prompt: str, wait_seconds: int = 1, max_retries: int =  30) -> str:
+    Args:
+        genie_space_id (str): The ID of the Genie space where the conversation should occur.
+        prompt (str): The user input or message to send to the Genie.
+        w (object): A Databricks WorkspaceClient object with access to the Genie API.
+
+    Returns:
+        dict: The full Genie response object containing the output of the conversation.
     """
-    Main routine to:
-    1. Post a prompt to Genie.
-    2. Poll for conversation status until completed (or maximum retries reached).
-    3. Process the response from Genie.
+    response = w.genie.start_conversation(
+        space_id=genie_space_id,
+        content=prompt
+    )
+    return response
 
-    Args:  
-        genie_space_id (str): The unique identifier for the Genie space.  
-        genie_conn (str): The connection string or credentials for accessing Genie.  
-        prompt (str): The prompt/question for Genie.  
-        wait_seconds (int, optional): The number of seconds to wait between polling attempts. Defaults to 1.  
-        max_retries (int, optional): The maximum number of polling attempts before giving up. Defaults to 15.  
-  
-    Returns:  
-        str: The processed response from Genie.  
-    """  
-    response = post_genie(genie_space_id, genie_conn, prompt)  
-    
-    if response.status_code == 200:  
-        try:  
-            raw_post_value = json.loads(response.text)  
-        except json.JSONDecodeError as exc:  
-            print("JSON decode error on POST response:", exc)  
-            return "Genie JSON decode error on POST response:", exc
+def get_genie_message(genie_space_id: str,  w: object, conversation_id: str, message_id: str, sleeper_time: float = 0.7, max_retries: int =  45) -> dict:
+    """
+    Retrieves a specific Genie message and its associated query results (if any) from a conversation.
 
-        conversation_id = raw_post_value.get('conversation_id')  
-        message_id = raw_post_value.get('message_id')  
-        if not conversation_id or not message_id:  
-            print("Missing conversation_id or message_id in the response.")  
-            return "Genie Missing conversation_id or message_id in the response."
+    Args:
+        genie_space_id (str): The Genie space ID where the conversation is located.
+        w (object): A Databricks WorkspaceClient instance with Genie API access.
+        conversation_id (str): The ID of the Genie conversation.
+        message_id (str): The ID of the specific message within the conversation to fetch.
+        sleeper_time (float): The time to wait between retries when polling for the message status (seconds).
+        max_retries (int): The maximum number of retries before giving up on the message status.
 
-        status = 'IN_PROGRESS'  
-        current_try = 0  
-        raw_get_value = {}  
+    Returns:
+        str: A formatted string combining any text, query, and query result found in the message attachments.
+             If an error occurs, a string describing the error is returned.
+    """
+    try:
+        combinated_values = ""
+        response_status = ""
+        current_try = 1
+        # Looping until response is received
+        while response_status != "COMPLETED" and current_try <= max_retries:
+            response = w.genie.get_message(
+                space_id=genie_space_id,
+                conversation_id=conversation_id,
+                message_id = message_id
+            )
+            print("⏳ Waiting for completion... (try", current_try, "of", max_retries,")") 
+            response_status = response.status.value
+            current_try += 1
+            time.sleep(0.7)
 
-        while status != 'COMPLETED' and current_try < max_retries:  
-            raw_get_value = get_genie_query_results(genie_space_id, genie_conn, conversation_id, message_id)  
-            status = raw_get_value.get('status', 'UNKNOWN')  
-            current_try += 1  
-            print("⏳ Waiting for completion... (try", current_try, "of", max_retries,")")  
-            if status != 'COMPLETED':  
-                time.sleep(wait_seconds)  
-
-        if status != 'COMPLETED':  
+        if response_status != 'COMPLETED':  
             print( f"Genie query did not complete after {max_retries} retries.")  
             return f"Genie query did not complete after {max_retries} retries."
+            
+        # Iterate over all attachments to extract data or fallback text
+        for attachment in response.attachments:
+            attachment_id = attachment.attachment_id
+            text = attachment.text.content if attachment.text is not None else ""
+            
+            if attachment.query is not None:
+                query = attachment.query.query
+                description = attachment.query.description
 
-        attachments = raw_get_value.get('attachments', [])  
-        if not attachments:  
-            print("No attachments found in the Genie response.")  
-            return "No attachments found in the Genie response."
+                # Fetch actual query result data
+                query_values = w.genie.get_message_query_result_by_attachment(
+                    space_id=genie_space_id,
+                    conversation_id=conversation_id,
+                    message_id=message_id,
+                    attachment_id=attachment_id)
+                
+                # Format query result as string
+                data_values = extract_column_values_string(query_values)
+                combinated_values += combinated_values + f"\nDescription: {description}\nUsed query: {query}\nResults: {data_values}"
+            else:
+                # If no query, just return the text content
+                combinated_values = text
+            return combinated_values
+    except Exception as e:
+        return f"Error while fetching Genie's values: {e}"
 
-        attachment_value = attachments[0]  
-        attachment_id = attachment_value.get('attachment_id')  
-        if not attachment_id:  
-            print("No attachment_id found in the first attachment.")  
-            return "No attachment_id found in the first Genie attachment."
+def run_genie(genie_space_id: str, prompt: str, sleeper_time: float = 0.7, max_retries: int =  45) -> str:
+    """
+    Executes a full Genie interaction by posting a prompt and retrieving the final message output.
 
-        if 'text' in attachment_value:  
-            text_content = attachment_value['text'].get('content', '')  
-            print(text_content)  
-            return text_content
+    Args:
+        genie_space_id (str): The ID of the Genie space to interact with.
+        prompt (str): The prompt/question to send to the Genie.
+        sleeper_time (float): The time to wait between retries when polling for the message status (seconds).
+        max_retries (int): The maximum number of retries before giving up on the message status.
+
+    Returns:
+        str: The final text or query-based response from Genie. If an error occurs, an error message is returned.
+    """
+    try:
+        # Initialize the Workspace client
+        w = get_workspace_client()
         
-        elif 'query' in attachment_value:  
-            query_description = attachment_value['query'].get('description', '')  
-            try:  
-                query_results = get_genie_query_attachment_results(genie_space_id, genie_conn, conversation_id, message_id, attachment_id)  
-                final_value = "Text: " + query_description + "\nQuery: " + query_results  
-            except Exception as e:  
-                print("Error retrieving query attachment results:", e)  
-                final_value = query_description  
-            print(f"Final Genie value: {final_value}")  
-            return final_value
-        else:  
-            print("Failed to decode Genie results from the attachment.")  
-    else:  
-        try:  
-            error_message = response.json()  
-        except Exception:  
-            error_message = response.text  
-        print("Error with Genie:", error_message)  
-        return f"Error with Genie: {error_message}"
+        # Start a conversation and wait for Genie to respond
+        response = post_genie(genie_space_id, prompt, w) 
+
+        # Extract conversation and message IDs for follow-up query 
+        conversation_id = response.conversation_id
+        message_id = response.message_id
+
+        # Retrieve and return the processed response
+        final_value = get_genie_message(genie_space_id, w, conversation_id, message_id, sleeper_time, max_retries)
+    except Exception as e:
+        final_value = f"Error during operating Genie: {e}"
+    
+    return final_value

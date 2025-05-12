@@ -6,7 +6,3 @@ command: [
 env:
   - name: "SERVING_ENDPOINT"
     valueFrom: "serving-endpoint"
-  - name: "DATABRICKS_HOST_SECRET"
-    valueFrom: "databricks-host-secret"
-  - name: "DATABRICKS_TOKEN_SECRET"
-    valueFrom: "databricks-token-secret"

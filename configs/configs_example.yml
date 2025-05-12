@@ -4,7 +4,6 @@ devops_token: Add your DevOps token secret here
 devops_organization: Add DevOps organization name here
 devops_project: Add DevOps project name here
 devops_connection: Add DevOps connection name here
-genie_connection: Add Genie connection name here
 
 tools:
   genie_123456789:

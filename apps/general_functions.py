@@ -1,3 +1,7 @@
+import re
+import requests
+import json 
+
 def call_chat_model(openai_client: any, model_name: str, messages: list, temperature: float = 0.3, max_tokens: int = 1000, **kwargs):
     """
     Calls the chat model and returns the response text or tool calls.
@@ -27,20 +31,18 @@ def call_chat_model(openai_client: any, model_name: str, messages: list, tempera
         print(f"Model endpoint calling error: {e}")
         return f"Model endpoint calling error: {e}"
 
-def get_documentation() -> str:  
-    """  
-    Reads the contents of a documentation file and returns it as a string.  
-  
-    Returns:  
-        str: The content of the documentation file.  
-    """  
-      
-    # Define the file name (hard-coded for demo purpose)  
-    file_name = 'fabricated_documentation.md'  
-      
-    # Read the contents of the file  
-    with open(file_name, 'r') as file:  
-        documentation_content = file.read()  
-      
-    # Return the content of the documentation file  
-    return documentation_content  
+def run_rest_api(server_hostname: str, token: str, api_version: str, api_command: str, action_type: str,  payload: dict = {}) -> str:
+    """
+    Run Databricks REST API endpoint dynamically
+    """
+    try:
+        assert action_type in ['POST', 'GET'], f'Only POST and GET are supported but you used {action_type}'
+        url = f"{server_hostname}/api/{api_version}{api_command}"
+        headers = {'Authorization': 'Bearer %s' % token}
+        session = requests.Session()
+        
+        resp = session.request(action_type, url, data=json.dumps(payload), verify=True, headers=headers)
+
+        return resp
+    except Exception as e:
+        return e

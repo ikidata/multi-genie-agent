@@ -7,7 +7,19 @@ from dbruntime.databricks_repl_context import get_context
 from databricks.sdk import WorkspaceClient
 
 def create_devops_connection(name: str, secret_scope: str, devops_token: str, devops_organization: str, devops_project: str): 
+    """
+    Creates a Unity Catalog HTTP connection in Databricks to Azure DevOps.
 
+    Args:
+        name (str): The name of the connection to be created.
+        secret_scope (str): The name of the secret scope where the DevOps token is stored.
+        devops_token (str): The key name of the DevOps token in the secret scope.
+        devops_organization (str): The Azure DevOps organization name.
+        devops_project (str): The Azure DevOps project name.
+
+    Returns:
+        None
+    """
     # Retrieve the Databricks server hostname from the context  
     databricks_server_hostname = get_context().browserHostName
     databricks_server_hostname = f"https://{databricks_server_hostname}"
@@ -44,38 +56,41 @@ def create_devops_connection(name: str, secret_scope: str, devops_token: str, de
     ))
   
 
-def create_genie_connection(name: str):  
+# def create_genie_connection(name: str):  
+#     '''
+#     DEPRECATED
+#     '''
   
-    # Retrieve the Databricks server hostname from the context  
-    databricks_server_hostname = get_context().browserHostName
-    databricks_server_hostname = f"https://{databricks_server_hostname}"
+#     # Retrieve the Databricks server hostname from the context  
+#     databricks_server_hostname = get_context().browserHostName
+#     databricks_server_hostname = f"https://{databricks_server_hostname}"
       
-    # Retrieve the Databricks token from the context  
-    databricks_token  = get_context().apiToken 
+#     # Retrieve the Databricks token from the context  
+#     databricks_token  = get_context().apiToken 
       
-    # Construct the payload for the connection  
-    payload = {  
-        "comment": "Genie-multi-agent PoC Connection",  
-        "connection_type": "HTTP",  
-        "name": name,  
-        "options": {  
-            "host": databricks_server_hostname,  
-            "port": "443",  
-            "base_path": "/api",  
-            "bearer_token": databricks_token  
-        },  
-        "read_only": False  
-    }  
+#     # Construct the payload for the connection  
+#     payload = {  
+#         "comment": "Genie-multi-agent PoC Connection",  
+#         "connection_type": "HTTP",  
+#         "name": name,  
+#         "options": {  
+#             "host": databricks_server_hostname,  
+#             "port": "443",  
+#             "base_path": "/api",  
+#             "bearer_token": databricks_token  
+#         },  
+#         "read_only": False  
+#     }  
       
-    # Run the REST API command to create the connection  
-    print(run_rest_api(  
-        token=databricks_token,  
-        server_hostname=databricks_server_hostname,  
-        api_version="2.1",  
-        api_command='/unity-catalog/connections',  
-        action_type='POST',  
-        payload=payload  
-    ))
+#     # Run the REST API command to create the connection  
+#     print(run_rest_api(  
+#         token=databricks_token,  
+#         server_hostname=databricks_server_hostname,  
+#         api_version="2.1",  
+#         api_command='/unity-catalog/connections',  
+#         action_type='POST',  
+#         payload=payload  
+#     ))
 
 
 def run_rest_api(token: str, server_hostname: str, api_version: str, api_command: str, action_type: str,  payload: dict = {}) -> str:
@@ -119,7 +134,7 @@ def run_rest_api(token: str, server_hostname: str, api_version: str, api_command
     except Exception as e:
         return e
 
-def create_config(secret_scope: str, databricks_token_secret_value: str, databricks_host_secret_value: str, databricks_genie_space_id_list: dict[str], genie_connection: str, devops_connection: str, devops_token_secret_value: str, devops_organization: str, devops_project: str):  
+def create_config(databricks_genie_space_id_list: dict[str], devops_connection: str):  
     tools = {}  
   
     for genie_space_id, description in databricks_genie_space_id_list.items():  
@@ -141,30 +156,12 @@ def create_config(secret_scope: str, databricks_token_secret_value: str, databri
             }  
         } 
     
-    tools['get_documentation'] = {  
-            "type": "function",  
-            "function": {  
-                "name": f"get_documentation",  
-                "description": "Get internal documentation for data enrichment",  
-                "parameters": {  
-                    "type": "object",  
-                    "properties": {  
-                        "activation": {  
-                            "type": "string",  
-                            "description": "Yes or No"  
-                        }  
-                    },  
-                    "required": ["activation"],  
-                }
-            }  
-        } 
-    
     if devops_connection != "":
         tools['create_update_devops_ticket'] = {  
                 "type": "function",  
                 "function": {  
                     "name": f"create_update_devops_ticket",  
-                    "description": "A tool dedicated for Azure DevOps ticket creation and update",  
+                    "description": "A tool dedicated for Azure DevOps ticket creation and update. Format the content to be suitable for DevOps ticket. It means simple markdown format.",  
                     "parameters": {  
                         "type": "object",  
                         "properties": {  
@@ -179,15 +176,8 @@ def create_config(secret_scope: str, databricks_token_secret_value: str, databri
             } 
 
     config = {  
-        "system_prompt": "Only invoke a Genie space when the user prompt clearly aligns with the specific capability of that space (e.g., SQL generation, data exploration, reporting). Do not default to Genie unless the intent is explicit or strongly implied by the request. When invoking a Genie space, forward the prompt unchanged to preserve user intent. If processing a response from Genie, clean and format the output appropriately, and always indicate which Genie space was used. If the user prompt suggests a relevant task but Genie did not return a valid output, clearly state that no result was returned by Genie.",    
-        "secret_scope": secret_scope,
-        "databricks_token_secret_value": databricks_token_secret_value,
-        "databricks_host_secret_value": databricks_host_secret_value,
-        "genie_connection": genie_connection,
+        "system_prompt": "Trigger the appropriate Genie space only when the user’s request clearly specifies or implies a domain or task that matches the expertise of an available Genie space. Select the Genie space based on the domain indicated in the user’s prompt—do not use Genie unless there is a clear domain alignment. When invoking a Genie space, forward the user's prompt exactly as given to preserve intent. After receiving a response, format and clean the output as needed, and always indicate which Genie space was used. If Genie does not provide a relevant result, clearly inform the user that no output was returned from the specified Genie space.",    
         "devops_connection": devops_connection,
-        "devops_token_secret_value": devops_token_secret_value,
-        "devops_organization": devops_organization,
-        "devops_project": devops_project,
         "tools": tools
     }  
   
@@ -196,6 +186,19 @@ def create_config(secret_scope: str, databricks_token_secret_value: str, databri
 
 
 def check_deployment_status(token, server_hostname, app_name, payload, max_tries=25):  
+    """
+    Polls the deployment status of an application until it becomes active or the retry limit is reached.
+
+    Args:
+        token (str): Authentication token for the API.
+        server_hostname (str): Hostname of the server where the app is being deployed.
+        app_name (str): Name of the application being deployed.
+        payload (dict): The payload to send with the API request.
+        max_tries (int, optional): Maximum number of polling attempts. Defaults to 25.
+
+    Returns:
+        dict or str: Deployment result if successful, or an error message string if the deployment doesn't complete in time.
+    """
     tries = 0  
       
     while tries < max_tries:  
@@ -221,6 +224,16 @@ def check_deployment_status(token, server_hostname, app_name, payload, max_tries
     return f"Deployment of {app_name} did not complete after {max_tries} attempts."
 
 def deploy_databricks_apps(name: str, model_name: str = "databricks-claude-3-7-sonnet") -> None:  
+    """
+    Deploys a Databricks application with the specified model and monitors its deployment status.
+
+    Args:
+        name (str): Name of the application to be deployed.
+        model_name (str, optional): Name of the model serving endpoint to attach. Defaults to Claude 3 Sonnet.
+
+    Returns:
+        None
+    """
     max_tries = 25  
   
     # Load configuration data  
@@ -239,25 +252,7 @@ def deploy_databricks_apps(name: str, model_name: str = "databricks-claude-3-7-s
                     "name": model_name,  
                     "permission": "CAN_QUERY"  
                 }  
-            },  
-            {  
-                "description": "API key for Databricks host secret",  
-                "name": "databricks-host-secret",  
-                "secret": {  
-                    "key": config_data['databricks_host_secret_value'],  
-                    "permission": "READ",  
-                    "scope": config_data['secret_scope']  
-                }  
-            },  
-            {  
-                "description": "API key for Databricks token secret",  
-                "name": "databricks-token-secret",  
-                "secret": {  
-                    "key": config_data['databricks_token_secret_value'],  
-                    "permission": "READ",  
-                    "scope": config_data['secret_scope']  
-                }  
-            }  
+            }
         ]  
     }  
   
