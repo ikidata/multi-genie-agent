@@ -2,7 +2,9 @@
 
 GenAI Agent development belongs to everyone! Databricks offers an amazing platform for it, and the purpose of this repo is to make the first steps even easier. This is a showcase repository for the Multi-Genie Agent solution with Databricks Apps. This allows you to chain Genie spaces together using the Executor Agent, enabling you to effortlessly manage everything from a single interface. The Executor Agent automatically passes your queries to the appropriate Genie Space, making this scalable and easy to manage. For example, you can initially inquire about sales data from the "Sales Genie," then related data pipelines from the "Metadata Genie" and finally create a DevOps ticket – all through one interface.
 
-The article on the solution can be found here: [Creating a Multi-Genie-Agent Solution with Databricks](https://www.ikidata.fi/post/creating-a-multi-genie-agent-solution-with-databricks-apps-code-included)
+The articles on the solution can be found here: 
+* [The latest upgrades](https://www.ikidata.fi/post/multi-genie-agent-solution-gets-an-upgrade)
+* [Creating a Multi-Genie-Agent Solution with Databricks](https://www.ikidata.fi/post/creating-a-multi-genie-agent-solution-with-databricks-apps-code-included)
 
 ## Table of Contents
 
