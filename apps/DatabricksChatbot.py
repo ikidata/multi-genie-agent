@@ -88,9 +88,7 @@ class DatabricksChatbot:
         self.logger.info("OpenAI API client was initialized successfully")        
 
     def _create_layout(self, user_name):
-        user_name = user_name  # Fetching user name for the session
-
-        user_name_cleaned = user_name.split('@')[0].capitalize()
+        user_name_cleaned = user_name.split('@')[0].capitalize()   # Cleaning user name
         default_message = f"Hello {user_name_cleaned}! Welcome to chat with Multi-Genie agentic solution on Databricks 🤖"
 
         return html.Div([

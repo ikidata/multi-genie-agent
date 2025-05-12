@@ -14,7 +14,7 @@ The article on the solution can be found here: [Creating a Multi-Genie-Agent Sol
 
 ## Introduction
 
-![architecture](https://static.wixstatic.com/media/729282_d7ddabc2e0dd4d5589ab7978f93820de~mv2.gif)
+![architecture](https://static.wixstatic.com/media/729282_3fb0bca51ef043f0b7f3561aaf649715~mv2.gif)
 
 This agentic solution demonstrates the true power of the Multi-Genie-Agent approach. Each Genie species is totally focused on a specific topic and treated as an isolated entity. Different teams and subject matter experts can continue developing these entities without external dependencies. You can then piece the puzzle together from different Genie parts, offering an effortless, comprehensive solution. 
 
@@ -28,7 +28,7 @@ Since Databricks offers good pre-built templates for creating apps, the Dash cha
 -   genie_123456*   - Depending how many Genie spaces you decide to use, those will be automatically converted to tools during deployment
 -   create_update_devops_ticket - Create / Update Azure DevOps tickets (capabilities limited for demo purposes)
 
-**Keep in mind that you can use more Genie spaces than just two.**
+**Keep in mind you can use more than two Genie spaces.**
 
 ## Prerequisites and Installation 
 
@@ -42,6 +42,8 @@ The deployment notebook contains a more detailed process of the required steps t
 
 ## Usage
 
+![usage](https://static.wixstatic.com/media/729282_4bda82033e434c8481a00f21e97b79a4~mv2.gif)
+
 The deployment notebook automatically deploys Databricks apps, and after granting permissions, you can start using the app. From the Databricks apps logs, you can see more detailed metadata on how it is performing. Remember to optimize the separate Genie spaces to improve results, adjust the executor agent system prompt to fit your needs, and do the same for tool descriptions. And once you are ready, remember to stop Apps. 
 
 ## Limitations
@@ -53,6 +55,9 @@ The deployment notebook automatically deploys Databricks apps, and after grantin
 - Agent features are really limited, and automated quality monitoring is excluded here. Also, advanced memory and reasoning capabilities are excluded.
 - The model endpoint LLM model requires tool support. Not all LLM models have been tested.
 - All validation has been done in Azure Databricks.
+
+#### Version 0.9 – 12.05.2025
+This version includes improved features and refinements across key components. For a complete list of changes, refer to the related merge history and commit logs.
 
 ## More information
 To stay up-to-date with the latest developments: 
