@@ -12,22 +12,28 @@ def get_workspace_client():
 
 def extract_column_values_string(response_obj):
     """
-    Extracts and formats the first row of column-value pairs from a response object.
+    Extracts and formats up to 50 rows of column-value pairs from a response object.
 
     Args:
         response_obj: An object containing a SQL or query result with schema and data.
 
     Returns:
-        str: A comma-separated string of column-value pairs, e.g. "col1: val1, col2: val2".
+        List[str]: A list of comma-separated strings of column-value pairs for each row,
+                   e.g. ["col1: val1, col2: val2", "col1: val3, col2: val4"].
     """
     # Extract column names from the response schema
     columns = [col.name for col in response_obj.statement_response.manifest.schema.columns]
 
-    # Get the first row of data values
-    values = response_obj.statement_response.result.data_array[0]
+    # Extract up to 50 rows of data
+    data_rows = response_obj.statement_response.result.data_array[:50]
 
-    # Pair columns with their corresponding values and return as formatted string
-    return ', '.join(f"{col}: {val}" for col, val in zip(columns, values))
+    # Format each row as a string of column-value pairs
+    formatted_rows = [
+        ', '.join(f"{col}: {val}" for col, val in zip(columns, row))
+        for row in data_rows
+    ]
+
+    return formatted_rows
 
 def post_genie(genie_space_id: str, prompt: str, w: object) -> dict:
     """
