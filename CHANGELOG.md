@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 - Genie space IDs and descriptions are no longer required during deployment.
 - System prompt
 - Improved Genie error handling: errors are now posted to the agent immediately upon failure instead of waiting for a timeout
+- Logger to it's own file
 
 ### Removed
 - DevOps beta ticket functionality 
