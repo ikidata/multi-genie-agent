@@ -14,7 +14,15 @@ All notable changes to this project will be documented in this file.
 - Helper functions to automate Genie Space integration using OBO tokens
 - Support for continuous conversation with Genie, enabling the agent to guide Genie during interactions
 - OBO-token support enabled by default (the Agent automatically uses the end-user’s authentication token for Genie Spaces)
-
+- Genie Spaces are updated automatically within the tool using official descriptions and end-user permissions
+- Selected Genie Spaces are dynamically converted into tools for agents on the fly.
+- A text cleaner is implemented for the agent's responses, refining updated ReAct answers into a more user-friendly format.
+- An automated chat memory optimizer is in place:
+  - Chat message history is capped at the last 25 messages unless the 100k token limit is reached.
+  - The optimizer also manages token usage for chat message history.
+  - Currently, Claude 3.7 Sonnet is used as a benchmark, though token counts may not be 100% accurate—this is intended to provide a general understanding of token usage.
+  - Tool replies (e.g., raw Genie answers) and tool-specific tokens are not factored into the token count.
+  
 ### Updated
 - Deployment notebook and process are now streamlined into a one-click experience.
 - Genie space IDs and descriptions are no longer required during deployment.
