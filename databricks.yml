@@ -1,0 +1,50 @@
+bundle:
+  name: dab-agentic-multi-genie-solution
+
+variables:
+  tags:
+    description: "Common tags for all items"
+    default:
+      solution_owner: Ikidata
+
+resources:
+  apps:
+    agentic-multi-genie-solution:
+      name: agentic-multi-genie-solution # _${bundle.target} <-- add an env suffix if needed
+      description: Agentic Multi-Genie-Agent Solution
+      source_code_path: ./apps
+      user_api_scopes:
+        - dashboards.genie
+      resources:
+        - name: serving-endpoint
+          serving_endpoint:
+            name: databricks-claude-3-7-sonnet
+            permission: CAN_QUERY
+        
+targets:
+  dev:
+    mode: development
+    default: true
+    presets:
+      name_prefix: ""
+      source_linked_deployment: false
+      tags: 
+        ${var.tags} 
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+      - user_name: ${workspace.current_user.userName}
+        level: CAN_MANAGE
+
+  prod:
+    mode: production
+    presets:
+      name_prefix: ""
+      source_linked_deployment: false
+      tags: 
+        ${var.tags} 
+    workspace:
+      root_path: /Workspace/Users/${workspace.current_user.userName}/.bundle/${bundle.name}/${bundle.target}
+    permissions:
+      - user_name: ${workspace.current_user.userName}
+        level: CAN_MANAGE

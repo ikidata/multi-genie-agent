@@ -33,6 +33,7 @@ All notable changes to this project will be documented in this file.
 - Enhanced overall functionality and error handling.
 - Timeout backup process added with fine-tuned error messages.
 - Genie GIFs now appear when a Genie is triggered, then switch to a static message once processing is complete.
+- DAB (Databricks Asset Bundles) deployment support
 
 ### Updated
 - Deployment notebook and process are now streamlined into a one-click experience
