@@ -3,8 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ---
-
-## [Unreleased]
+## [1.0.0] - 2025-07-23
 ### Added
 - CHANGELOG.md file
 - Behalf-on-user authentication support to Apps on Genie spaces
@@ -49,7 +48,6 @@ All notable changes to this project will be documented in this file.
 - DevOps beta ticket functionality 
 - DevOps ticket functions
 - Genie space IDs and descriptions are no longer required during deployment
-
 ---
 ## [0.9.1] - 2025-05-15
 ### Updated
@@ -65,7 +63,7 @@ All notable changes to this project will be documented in this file.
 
 ### Updated
 - OpenAI client to be used from SDK instead of PAT token
-- Print to logging, removed all tokens to use sp oAuth, changed Genie authentication to under Apps Service Principal, 
+- Print to logging, removed all tokens to use sp oAuth, changed Genie authentication to under Apps Service Principal
 - Databricks SDK version, 
 - Updated Genie code to run on SDK
 - Systemp prompt
