@@ -10,11 +10,15 @@ All notable changes to this project will be documented in this file.
 - Behalf-on-user authentication support to Apps on Genie spaces
 - Dynamic LLM configurations for Apps deployment (Multi-LLM support)
 - Created 'assets' folder and added logo pictures & Genie loading gif
+- Pydantic validation for the Genie spaces tool-calling component
+- Helper functions to automate Genie Space integration using OBO tokens
+- Support for continuous conversation with Genie, enabling the agent to guide Genie during interactions
 
 ### Updated
 - Deployment notebook and process are now streamlined into a one-click experience.
 - Genie space IDs and descriptions are no longer required during deployment.
 - System prompt
+- Improved Genie error handling: errors are now posted to the agent immediately upon failure instead of waiting for a timeout
 
 ### Removed
 - DevOps beta ticket functionality 
