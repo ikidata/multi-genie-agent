@@ -13,6 +13,7 @@ All notable changes to this project will be documented in this file.
 - Pydantic validation for the Genie spaces tool-calling component
 - Helper functions to automate Genie Space integration using OBO tokens
 - Support for continuous conversation with Genie, enabling the agent to guide Genie during interactions
+- OBO-token support enabled by default (the Agent automatically uses the end-user’s authentication token for Genie Spaces)
 
 ### Updated
 - Deployment notebook and process are now streamlined into a one-click experience.
