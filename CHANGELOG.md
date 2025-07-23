@@ -7,13 +7,23 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 ### Added
 - CHANGELOG.md file
+- Behalf-on-user authentication support to Apps on Genie spaces
+- Dynamic LLM configurations for Apps deployment (Multi-LLM support)
+
+### Updated
+- Deployment notebook and process are now streamlined into a one-click experience.
+- Genie space IDs and descriptions are no longer required during deployment.
+- System prompt
+
+### Removed
+- DevOps beta ticket functionality
 
 ---
 ## [0.9.1] - 2025-05-15
 ### Updated
 - Genie data result processing to support max 50 rows
 
---
+---
 ## [0.9.0] - 2025-05-12
 ### Added
 - Flask auth
