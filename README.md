@@ -1,10 +1,12 @@
-# A Multi-Genie-Agent Solution with Databricks Apps
+# An Agentic Multi-Genie Solution on Databricks Apps
 
-GenAI Agent development belongs to everyone! Databricks offers an amazing platform for it, and the purpose of this repo is to make the first steps even easier. This is a showcase repository for the Multi-Genie Agent solution with Databricks Apps. This allows you to chain Genie spaces together using the Executor Agent, enabling you to effortlessly manage everything from a single interface. The Executor Agent automatically passes your queries to the appropriate Genie Space, making this scalable and easy to manage. For example, you can initially inquire about sales data from the "Sales Genie," then related data pipelines from the "Metadata Genie" and finally create a DevOps ticket – all through one interface.
+This is a showcase repository for the Agentic Multi-Genie solution on Databricks Apps. This allows you to chain Genie spaces dynamically together using the Executor Agent, enabling you to effortlessly manage everything from a single interface (Databricks Apps). You can decide which Genie Spaces the agent can use and whether to use ReAct or simple agent. When ReAct option is set to "no," the solution defaults to a simple tool-calling agent, suitable for handling straightforward tasks with ease. But when it comes to complex challenges, like using multiple Genie Spaces to analyze customer behavior based on profitability, feedback and buying patterns, while factoring in average values and company policies, the ReAct Agent truly excels. It's time to unleash Genie Spaces as your personal data analysts!
 
 The articles on the solution can be found here: 
-* [The latest upgrades](https://www.ikidata.fi/post/multi-genie-agent-solution-gets-an-upgrade)
-* [Creating a Multi-Genie-Agent Solution with Databricks](https://www.ikidata.fi/post/creating-a-multi-genie-agent-solution-with-databricks-apps-code-included)
+* 📚 [Agentic Databricks Solutions - Have your own Multi-Genie assistant](https://www.ikidata.fi/post/agentic-databricks-solutions-have-your-own-multi-genie-assistant)
+* 📚 [Older article explaining the first iteration and thought process](https://www.ikidata.fi/post/creating-a-multi-genie-agent-solution-with-databricks-apps-code-included)
+
+---
 
 ## Table of Contents
 
@@ -12,58 +14,95 @@ The articles on the solution can be found here:
 - [Prerequisites and Installation](#prerequisites-and-installation)
 - [Usage](#usage)
 - [Known limitations](#Limitations)
-- [More information](#More-information)
+- [Versions](#Version-0.9–23.07.2025)
+
+---
 
 ## Introduction
 
-![architecture](https://static.wixstatic.com/media/729282_3fb0bca51ef043f0b7f3561aaf649715~mv2.gif)
+![usage](https://static.wixstatic.com/media/729282_614a582cba3f4b789425af0fc7176104~mv2.gif)
 
 This agentic solution demonstrates the true power of the Multi-Genie-Agent approach. Each Genie species is totally focused on a specific topic and treated as an isolated entity. Different teams and subject matter experts can continue developing these entities without external dependencies. You can then piece the puzzle together from different Genie parts, offering an effortless, comprehensive solution. 
 
-Remember, the goal of this solution is to demonstrate possibilities and provide new insights, rather than offering production-ready solutions. Take the insights gained and continue developing your own solutions further. Because of the nature of this PoC, many essential parts are missing, such as proper validations and more advanced functionalities.
+Remember, the goal of this solution is to demonstrate possibilities and provide new insights, rather than offering production-ready solutions. Take the insights gained and continue developing your own solutions further.
 
-Genie subagents are limited to 42s before timeout. Genie is polled every 0.7 seconds by default with a maximum of 60 tries, and both values can be adjusted. The Databricks Apps model endpoint acts as an executor agent, passing prompts forward to Genie spaces and back. It uses a simple function call agentic approach with temporarily extended memory, wrapping Genie outputs before returning the value. You can easily switch the model during or after deploying the apps. All phases are visible in the logs on a user level, but the end user can only see the final result on the apps. The executor agent has the freedom to choose subagents, so tool metadata is crucial for smooth operation. Thanks to session memory, it's possible to ask questions from different Genie spaces and then pass them to DevOps.
+Databricks Apps provide user-level Python sessions to ensure secure usage. This also means that Genie Spaces are accessed using on-behalf-of-user (OBO) authentication. In practice, the OBO token is fetched from the Dash header and used to call the Genie REST API endpoint via the SDK. Apps support OBO tokens (the required Genie Spaces API scope is added automatically), but this also means that all Apps users will use this authentication method. All other authentication is handled via the App-specific service principal.
 
-Since Databricks offers good pre-built templates for creating apps, the Dash chatbot template has been used here. On top of it, more sophisticated features have been built to improve user experience.
+You can choose from ReAct and simple again from options. Simple agent is limited to one tool call but ReAct agent have autonomy all the way till six (6) nodes (feedback loop steps). It's limited to six to avoid expensive infinity loops. If the agent cannot finish analyze, you can request that it keeps working on the request. Thanks for short-term memory, it can start feedback loop again and use the history information. Short-term memory is limited to 25 messages and then messages are being deleted automatically from the latest, keeping active messages on 25. Genie spaces are being detected automatically using OBO-token. You can activate or deactive Genie spaces based on your needs. It's recommended to keep only relevant Genie spaces to help agent perform even better. And remember, Genie spaces are automatically added as a tools but requires proper descriptions (which are fectched from Genie Space metadata). Without a good description, it's impossible for the agent understand what's going on and how to use the Genie Space. Keep in mind that you can use as many Genie Spaces as you want.
 
-### Used tools in the example:
--   genie_123456*   - Depending how many Genie spaces you decide to use, those will be automatically converted to tools during deployment
--   create_update_devops_ticket - Create / Update Azure DevOps tickets (capabilities limited for demo purposes)
+Since Databricks offers good pre-built templates for creating apps, the Dash chatbot template has been used here. On top of it, a lot more sophisticated features have been built to improve user experience.
 
-**Keep in mind you can use more than two Genie spaces.**
+---
 
 ## Prerequisites and Installation 
 
-The deployment notebook contains a more detailed process of the required steps to get this working. Automated deployment code (e.g., using Databricks Asset Bundles) is excluded due to unique authentication and modification needs. But deployment notebook contains full automation to get started with this solution really easily. 
+The deployment notebook contains a more detailed process of the required steps to get this working. Well let's be honest, you have to choose your LLM model and then just click deploy - the rest is fully automated. Claude 3.7. Sonnet is added automatically (Pay-per-Token billing on Databricks). Databricks.yml is also added if you prefer to use Databricks Asset Bundles for deployment.
 
 **Implementation process**
-- Create Genie spaces that you want to use.
+- Ensure you have existing Genie Spaces
 - Clone the repo to your Databricks workspace (instructions https://docs.databricks.com/aws/en/repos/git-operations-with-repos).
-- Populate the deployment notebook and follow the instructions. The DevOps tool is optional — you can leave the DevOps variables empty ("") and it won't be created.
-- Grant the required permissions to the Apps Service Principal (for used Genie spaces, tables Genie uses and model endpoints)
+- Populate the deployment notebook (LLM model) and deploy
+
+---
+
+## Architecture
+![architecture](https://static.wixstatic.com/media/729282_d307d048531949928dbbb7eff00b182b~mv2.gif)
+
+---
 
 ## Usage
 
-![usage](https://static.wixstatic.com/media/729282_4bda82033e434c8481a00f21e97b79a4~mv2.gif)
+📄 [Instructions on how to use the solution](https://www.ikidata.fi/post/agentic-databricks-solutions-have-your-own-multi-genie-assistant)
 
-The deployment notebook automatically deploys Databricks apps, and after granting permissions, you can start using the app. From the Databricks apps logs, you can see more detailed metadata on how it is performing. Remember to optimize the separate Genie spaces to improve results, adjust the executor agent system prompt to fit your needs, and do the same for tool descriptions. And once you are ready, remember to stop Apps. 
+The deployment notebook automatically deploys Databricks apps, which takes around 10 minutes. From the Databricks apps logs, you can see more detailed metadata on how they are performing. Remember to optimize the separate Genie spaces to improve results, adjust the executor agent's system prompt to fit your needs, and do the same for the tool descriptions. And once you're done, don't forget to stop the apps.
+
+---
 
 ## Limitations
-- Keep in mind that this is for demo purposes only. Although it gives a clear understanding of how you can use it as a template for further development.
-- For example, DevOps repo modification is limited to creating one epic with body changes only. However, you can see from the code how easy it is to start implementing more sophisticated features like commenting based on company documentation, adding and closing bug tickets automatically, etc.
-    - RAG: Create an automated data processing pipeline and store it as a vector index.
-    - REST API calls: Use a dynamic approach and fetch documentation using a REST API approach (requires good documentation mapping).
-    - Extended prompts: Current logic. Now that LLM's context window is getting so big, RAG isn't even needed in all cases.
-- Agent features are really limited, and automated quality monitoring is excluded here. Also, advanced memory and reasoning capabilities are excluded.
-- The model endpoint LLM model requires tool support. Not all LLM models have been tested.
+- Keep in mind that this isn't for prod use. Although it gives a clear understanding of how you can use it as a template for further development.
+- The model endpoint LLM model requires tool support. Currently tested models:
+  - Claude 3.7: Works really well while being thorough
+  - GPT-4o: Performs well
+  - GPT-4.1 series: Performs well
+  - *OpenAI's reasoning models: Performed decently after disabling temperature settings, though still prefer the GPT-4.1 series.
+
+- Recommended models: For the best user-experience, I'd say GPT-4.1 series models or GPT-4o. But Claude 3.7 continues to deliver the best results overall, easily.
 - All validation has been done in Azure Databricks.
 
-#### Version 0.9 – 12.05.2025
-This version includes improved features and refinements across key components. For a complete list of changes, refer to the related merge history and commit logs.
+---
 
-## More information
-To stay up-to-date with the latest developments: 
-1) Follow Ikidata on LinkedIn: https://www.linkedin.com/company/ikidata/ 
-2) Explore more on our website: https://www.ikidata.fi
+## Version 1.0 – 23.07.2025
+This version includes improved features and refinements across key components. For a complete list of changes, please read update history from CHANGELOG.md file.
+* [View changelog](./CHANGELOG.md)
+* *Old version can be found here: [v.0.9](https://github.com/ikidata/multi-genie-agent/tree/version-0.9)*
 
-![logo](https://github.com/ikidata/ikidata_public_pictures/blob/main/logos/Ikidata_aurora_small.png?raw=true)
+
+<hr style="border: 1px solid #666; width: 80%;">  
+<h3>  
+    Agentic Automation on Databricks
+</h3>  
+
+<a href="https://raw.githubusercontent.com/ikidata/ikidata_public_pictures/refs/heads/main/logos/new_ikidata_background_logo.gif">  
+  <img src="https://raw.githubusercontent.com/ikidata/ikidata_public_pictures/refs/heads/main/logos/new_ikidata_background_logo.gif" alt="Ikidata Logo">  
+</a>  
+
+
+<div class="follow-linkedin">  
+  <a href="https://www.linkedin.com/company/ikidata/" target="_blank">  
+    <img src="https://upload.wikimedia.org/wikipedia/commons/c/ca/LinkedIn_logo_initials.png" alt="LinkedIn Logo" style="width: 10px; vertical-align: middle;">  
+      Follow Ikidata on LinkedIn  
+  </a>  
+</div>  
+ 
+<div class="explore-website">  
+  <a href="https://www.ikidata.fi" target="_blank">  
+    <img src="https://github.com/ikidata/ikidata_public_pictures/blob/main/logos/Ikidata_aurora.png" alt="Ikidata Website Logo" style="width: 10px; vertical-align: middle;">  
+      Explore our website  
+  </a>  
+</div>  
+
+<div class="gain-knowledge">  
+  <a href="https://www.ikidata.fi/knowledge" target="_blank">  
+    📚Gain new Databricks knowledge  
+  </a>  
+</div>  

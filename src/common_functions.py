@@ -6,54 +6,55 @@ import os
 from dbruntime.databricks_repl_context import get_context
 from databricks.sdk import WorkspaceClient
 
-def create_devops_connection(name: str, secret_scope: str, devops_token: str, devops_organization: str, devops_project: str): 
-    """
-    Creates a Unity Catalog HTTP connection in Databricks to Azure DevOps.
+####### DEPRECATED #######
+# def create_devops_connection(name: str, secret_scope: str, devops_token: str, devops_organization: str, devops_project: str): 
+#     """
+#     Creates a Unity Catalog HTTP connection in Databricks to Azure DevOps.
 
-    Args:
-        name (str): The name of the connection to be created.
-        secret_scope (str): The name of the secret scope where the DevOps token is stored.
-        devops_token (str): The key name of the DevOps token in the secret scope.
-        devops_organization (str): The Azure DevOps organization name.
-        devops_project (str): The Azure DevOps project name.
+#     Args:
+#         name (str): The name of the connection to be created.
+#         secret_scope (str): The name of the secret scope where the DevOps token is stored.
+#         devops_token (str): The key name of the DevOps token in the secret scope.
+#         devops_organization (str): The Azure DevOps organization name.
+#         devops_project (str): The Azure DevOps project name.
 
-    Returns:
-        None
-    """
-    # Retrieve the Databricks server hostname from the context  
-    databricks_server_hostname = get_context().browserHostName
-    databricks_server_hostname = f"https://{databricks_server_hostname}"
+#     Returns:
+#         None
+#     """
+#     # Retrieve the Databricks server hostname from the context  
+#     databricks_server_hostname = get_context().browserHostName
+#     databricks_server_hostname = f"https://{databricks_server_hostname}"
       
-    # Retrieve the Databricks token from the context  
-    databricks_token  = get_context().apiToken  
+#     # Retrieve the Databricks token from the context  
+#     databricks_token  = get_context().apiToken  
 
-    w = WorkspaceClient()
-    dbutils = w.dbutils
-    devops_token = dbutils.secrets.get(secret_scope, devops_token)
+#     w = WorkspaceClient()
+#     dbutils = w.dbutils
+#     devops_token = dbutils.secrets.get(secret_scope, devops_token)
     
-    # Construct the payload for the connection  
-    payload = {  
-        "comment": "Genie-multi-agent DevOps PoC Connection",  
-        "connection_type": "HTTP",  
-        "name": name,  
-        "options": {  
-            "host": 'https://dev.azure.com',  
-            "port": "443",  
-            "base_path": f"/{devops_organization}/{devops_project}",  
-            "bearer_token": devops_token,  
-        },  
-        "read_only": False  
-    }  
+#     # Construct the payload for the connection  
+#     payload = {  
+#         "comment": "Genie-multi-agent DevOps PoC Connection",  
+#         "connection_type": "HTTP",  
+#         "name": name,  
+#         "options": {  
+#             "host": 'https://dev.azure.com',  
+#             "port": "443",  
+#             "base_path": f"/{devops_organization}/{devops_project}",  
+#             "bearer_token": devops_token,  
+#         },  
+#         "read_only": False  
+#     }  
   
-    # Run the REST API command to create the connection  
-    print(run_rest_api(  
-        token=databricks_token,  
-        server_hostname=databricks_server_hostname,  
-        api_version="2.1",  
-        api_command='/unity-catalog/connections',  
-        action_type='POST',  
-        payload=payload  
-    ))
+#     # Run the REST API command to create the connection  
+#     print(run_rest_api(  
+#         token=databricks_token,  
+#         server_hostname=databricks_server_hostname,  
+#         api_version="2.1",  
+#         api_command='/unity-catalog/connections',  
+#         action_type='POST',  
+#         payload=payload  
+#     ))
   
 
 # def create_genie_connection(name: str):  
@@ -134,56 +135,66 @@ def run_rest_api(token: str, server_hostname: str, api_version: str, api_command
     except Exception as e:
         return e
 
-def create_config(databricks_genie_space_id_list: dict[str], devops_connection: str):  
-    tools = {}  
-  
-    for genie_space_id, description in databricks_genie_space_id_list.items():  
-        tools[f"genie_{genie_space_id}"] = {  
-            "type": "function",  
-            "function": {  
-                "name": f"genie_{genie_space_id}",  
-                "description": description,  
-                "parameters": {  
-                    "type": "object",  
-                    "properties": {  
-                        "prompt": {  
-                            "type": "string",  
-                            "description": "Write an optimized prompt to fetch the requested information from Genie Space."  
-                        }  
-                    },  
-                    "required": ["prompt"],  
-                }
-            }  
-        } 
+def get_llm_model_apps_configs(model_name: str) -> list[dict]:
+    """
+    Generate a list of LLM model configurations for serving endpoints based on the provided model name.
     
-    if devops_connection != "":
-        tools['create_update_devops_ticket'] = {  
-                "type": "function",  
-                "function": {  
-                    "name": f"create_update_devops_ticket",  
-                    "description": "A tool dedicated for Azure DevOps ticket creation and update. Format the content to be suitable for DevOps ticket. It means simple markdown format.",  
-                    "parameters": {  
-                        "type": "object",  
-                        "properties": {  
-                            "content": {  
-                                "type": "string",  
-                                "description": "write a content for DevOps ticket. Remove all formatting and bolding."  
-                            }  
-                        },  
-                        "required": ["content"],  
-                    }
-                }  
-            } 
+    This function creates a prioritized list of serving endpoint configurations. If the provided
+    model name is one of the default recommended models, it will be included in the list.
+    Otherwise, the provided model will be added as the primary endpoint, followed by the
+    default recommended models.
+    
+    Args:
+        model_name (str): The name of the LLM model to use
+        
+    Returns:
+        list[dict]: A list of serving endpoint configurations
+    """
+    # Known recommended models
+    default_models = ['databricks-claude-3-7-sonnet']
+    
+    # Default model configurations
+    claude_config = {  
+        "description": "Serving endpoint for LLM model Claude 3.7. Sonnet",  
+        "name": "serving-endpoint",  
+        "serving_endpoint": {  
+            "name": 'databricks-claude-3-7-sonnet',  
+            "permission": "CAN_QUERY"  
+        }  
+    }
+    
+    
+    if model_name in default_models:
+        # If using a default model, just return the default configurations
+        return [claude_config]
+    else:
+        # If using a custom model, add it as the primary endpoint followed by defaults
+        custom_config = {  
+            "description": f"Serving endpoint for LLM model {model_name}",  
+            "name": "serving-endpoint",  
+            "serving_endpoint": {  
+                "name": model_name,  
+                "permission": "CAN_QUERY"  
+            }  
+        }
+        
+        # Ensure the custom model is the first in the list
+        return [custom_config, claude_config]
 
-    config = {  
-        "system_prompt": "Trigger the appropriate Genie space only when the user’s request clearly specifies or implies a domain or task that matches the expertise of an available Genie space. Select the Genie space based on the domain indicated in the user’s prompt—do not use Genie unless there is a clear domain alignment. When invoking a Genie space, forward the user's prompt exactly as given to preserve intent. After receiving a response, format and clean the output as needed, and always indicate which Genie space was used. If Genie does not provide a relevant result, clearly inform the user that no output was returned from the specified Genie space.",    
-        "devops_connection": devops_connection,
-        "tools": tools
-    }  
-  
-    with open("./apps/config.yml", "w") as file:  
-        yaml.dump(config, file, default_flow_style=False) 
+def create_config(model_name: str):  
+    
+    with open('./apps/config.yml', "r", encoding="utf-8") as f:
+        lines = f.readlines()
 
+    with open('./apps/config.yml', "w", encoding="utf-8") as f:
+        for line in lines:
+            if line.strip().startswith("model_name:"):
+                # preserve original indentation
+                indent = line[:line.find("model_name:")]
+                f.write(f"{indent}model_name: {model_name}\n")
+            else:
+                f.write(line)
+        
 
 def check_deployment_status(token, server_hostname, app_name, payload, max_tries=25):  
     """
@@ -239,20 +250,14 @@ def deploy_databricks_apps(name: str, model_name: str = "databricks-claude-3-7-s
     # Load configuration data  
     with open("./apps/config.yml", 'r') as file:  
         config_data = yaml.safe_load(file)  
-  
+
     # Construct the payload  
     payload = {  
-        "description": "Multi-Genie-Agent PoC",  
+        "description": "Agentic Multi-Genie-Agent Solution",  
         "name": name,  
-        "resources": [  
-            {  
-                "description": "Serving endpoint for LLM model",  
-                "name": "serving-endpoint",  
-                "serving_endpoint": {  
-                    "name": model_name,  
-                    "permission": "CAN_QUERY"  
-                }  
-            }
+        "resources": get_llm_model_apps_configs(model_name),  
+        "user_api_scopes": [
+            "dashboards.genie"
         ]  
     }  
   
