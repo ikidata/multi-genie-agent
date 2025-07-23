@@ -6,6 +6,8 @@ The articles on the solution can be found here:
 * 📚 [Agentic Databricks Solutions - Have your own Multi-Genie assistant](https://www.ikidata.fi/post/agentic-databricks-solutions-have-your-own-multi-genie-assistant)
 * 📚 [Older article explaining the first iteration and thought process](https://www.ikidata.fi/post/creating-a-multi-genie-agent-solution-with-databricks-apps-code-included)
 
+---
+
 ## Table of Contents
 
 - [Introduction](#introduction)
@@ -14,9 +16,11 @@ The articles on the solution can be found here:
 - [Known limitations](#Limitations)
 - [Versions](#Version-0.9–23.07.2025)
 
+---
+
 ## Introduction
 
-![Demo](https://static.wixstatic.com/media/729282_e08d295429884afaa43e7c2f356ecdf2~mv2.gif)
+![usage](https://static.wixstatic.com/media/729282_e08d295429884afaa43e7c2f356ecdf2~mv2.gif)
 
 This agentic solution demonstrates the true power of the Multi-Genie-Agent approach. Each Genie species is totally focused on a specific topic and treated as an isolated entity. Different teams and subject matter experts can continue developing these entities without external dependencies. You can then piece the puzzle together from different Genie parts, offering an effortless, comprehensive solution. 
 
@@ -40,8 +44,9 @@ The deployment notebook contains a more detailed process of the required steps t
 - Populate the deployment notebook (LLM model) and deploy
 
 ---
+
 ## Architecture
-![usage](https://static.wixstatic.com/media/729282_d307d048531949928dbbb7eff00b182b~mv2.gif)
+![architecture](https://static.wixstatic.com/media/729282_d307d048531949928dbbb7eff00b182b~mv2.gif)
 
 ---
 
