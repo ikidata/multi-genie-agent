@@ -17,7 +17,7 @@ All notable changes to this project will be documented in this file.
 - System prompt
 
 ### Removed
-- DevOps beta ticket functionality
+- DevOps beta ticket functionality (code & deployment part)
 
 ---
 ## [0.9.1] - 2025-05-15
