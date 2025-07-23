@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - CHANGELOG.md file
 - Behalf-on-user authentication support to Apps on Genie spaces
 - Dynamic LLM configurations for Apps deployment (Multi-LLM support)
+- Created 'assets' folder and added logo pictures & Genie loading gif
 
 ### Updated
 - Deployment notebook and process are now streamlined into a one-click experience.
