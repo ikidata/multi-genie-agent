@@ -22,17 +22,22 @@ All notable changes to this project will be documented in this file.
   - The optimizer also manages token usage for chat message history.
   - Currently, Claude 3.7 Sonnet is used as a benchmark, though token counts may not be 100% accurate—this is intended to provide a general understanding of token usage.
   - Tool replies (e.g., raw Genie answers) and tool-specific tokens are not factored into the token count.
-  
+- Own autonomous ReAct agent with a hard limit of 6 nodes.
+- Agent in deployment format, designed for easy transition to Mosaic AI model serving once OBO authentication is supported.
+- Tracing support (currently deactivated, as the agent is not served via Model Serving).
+- Streaming support for full messages (not single chunks, to ensure robustness, output validation, and format cleaning).
+
 ### Updated
-- Deployment notebook and process are now streamlined into a one-click experience.
-- Genie space IDs and descriptions are no longer required during deployment.
+- Deployment notebook and process are now streamlined into a one-click experience
 - System prompt
 - Improved Genie error handling: errors are now posted to the agent immediately upon failure instead of waiting for a timeout
 - Logger to it's own file
+- Agent can now handle Genies Null attachment values to do failed queries
 
 ### Removed
 - DevOps beta ticket functionality 
 - DevOps ticket functions
+- Genie space IDs and descriptions are no longer required during deployment
 
 ---
 ## [0.9.1] - 2025-05-15
