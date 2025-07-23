@@ -20,7 +20,7 @@ The articles on the solution can be found here:
 
 ## Introduction
 
-![usage](https://static.wixstatic.com/media/729282_e08d295429884afaa43e7c2f356ecdf2~mv2.gif)
+![usage](https://static.wixstatic.com/media/729282_614a582cba3f4b789425af0fc7176104~mv2.gif)
 
 This agentic solution demonstrates the true power of the Multi-Genie-Agent approach. Each Genie species is totally focused on a specific topic and treated as an isolated entity. Different teams and subject matter experts can continue developing these entities without external dependencies. You can then piece the puzzle together from different Genie parts, offering an effortless, comprehensive solution. 
 
