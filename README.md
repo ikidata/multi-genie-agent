@@ -36,12 +36,15 @@ Since Databricks offers good pre-built templates for creating apps, the Dash cha
 
 ## Prerequisites and Installation 
 
-The deployment notebook contains a more detailed process of the required steps to get this working. Well let's be honest, you have to choose your LLM model and then just click deploy - the rest is fully automated. Claude 3.7. Sonnet is added automatically (Pay-per-Token billing on Databricks). Databricks.yml is also added if you prefer to use Databricks Asset Bundles for deployment.
+The deployment notebook contains a more detailed process of the required steps to get this working. Well let's be honest, you have to choose your LLM model and then just click deploy - the rest is fully automated. Claude 3.7. Sonnet is added automatically (Pay-per-Token billing on Databricks). Databricks.yml is also added if you prefer to use Databricks Asset Bundles for deployment. 
+
+**_Since Databricks Apps on-behalf-of-user authentication is in public preview, you have to activate it in the workspace first._**
 
 **Implementation process**
 - Ensure you have existing Genie Spaces
 - Clone the repo to your Databricks workspace (instructions https://docs.databricks.com/aws/en/repos/git-operations-with-repos).
 - Populate the deployment notebook (LLM model) and deploy
+- Activate Public Preview in the workspace if you haven't done it yet
 
 ---
 
