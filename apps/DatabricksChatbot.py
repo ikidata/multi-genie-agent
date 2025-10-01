@@ -281,9 +281,13 @@ class DatabricksChatbot:
             else:
                 results = response.choices[0].message.content
                 self.logger.info(f'[{user_name}] ✅ Model endpoint called successfully')
+
+            # Extract the final response
+            final_response = results[-1]['text']
+
             self.logger.info(f"[{user_name}] 💾 Current messages: {messages}")
-            self.logger.info(f"[{user_name}] 🤖 Returning results: {results}")
-            return results
+            self.logger.info(f"[{user_name}] 🤖 Returning results: {final_response}")
+            return final_response
         except Exception as e:
             self.logger.info(f'[{user_name}] Error calling model endpoint: {str(e)}')
             raise
