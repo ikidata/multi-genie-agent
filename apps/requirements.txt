@@ -5,5 +5,5 @@ databricks-sdk==0.55.0
 openai==1.55.3
 flask==3.0.3
 logging
-mlflow==3.1.0
+mlflow==3.5.0
 databricks-agents

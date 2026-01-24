@@ -1,5 +1,7 @@
 # An Agentic Multi-Genie Solution on Databricks Apps
 
+_**Deprecated - not being updated**_
+
 This is a showcase repository for the Agentic Multi-Genie solution on Databricks Apps. This allows you to chain Genie spaces dynamically together using the Executor Agent, enabling you to effortlessly manage everything from a single interface (Databricks Apps). You can decide which Genie Spaces the agent can use and whether to use ReAct or simple agent. When ReAct option is set to "no," the solution defaults to a simple tool-calling agent, suitable for handling straightforward tasks with ease. But when it comes to complex challenges, like using multiple Genie Spaces to analyze customer behavior based on profitability, feedback and buying patterns, while factoring in average values and company policies, the ReAct Agent truly excels. It's time to unleash Genie Spaces as your personal data analysts!
 
 The articles on the solution can be found here: 
