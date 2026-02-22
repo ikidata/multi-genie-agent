@@ -1,7 +1,5 @@
 # An Agentic Multi-Genie Solution on Databricks Apps
 
-_**Deprecated - not being updated**_
-
 This is a showcase repository for the Agentic Multi-Genie solution on Databricks Apps. This allows you to chain Genie spaces dynamically together using the Executor Agent, enabling you to effortlessly manage everything from a single interface (Databricks Apps). You can decide which Genie Spaces the agent can use and whether to use ReAct or simple agent. When ReAct option is set to "no," the solution defaults to a simple tool-calling agent, suitable for handling straightforward tasks with ease. But when it comes to complex challenges, like using multiple Genie Spaces to analyze customer behavior based on profitability, feedback and buying patterns, while factoring in average values and company policies, the ReAct Agent truly excels. It's time to unleash Genie Spaces as your personal data analysts!
 
 The articles on the solution can be found here: 
@@ -16,7 +14,7 @@ The articles on the solution can be found here:
 - [Prerequisites and Installation](#prerequisites-and-installation)
 - [Usage](#usage)
 - [Known limitations](#Limitations)
-- [Versions](#Version-0.9–23.07.2025)
+- [Versions](#versions)
 
 ---
 
@@ -38,7 +36,7 @@ Since Databricks offers good pre-built templates for creating apps, the Dash cha
 
 ## Prerequisites and Installation 
 
-The deployment notebook contains a more detailed process of the required steps to get this working. Well let's be honest, you have to choose your LLM model and then just click deploy - the rest is fully automated. Claude 3.7. Sonnet is added automatically (Pay-per-Token billing on Databricks). Databricks.yml is also added if you prefer to use Databricks Asset Bundles for deployment. 
+The deployment notebook contains a more detailed process of the required steps to get this working. Well let's be honest, you have to choose your LLM model and then just click deploy - the rest is fully automated. Claude Sonnet 4.6 is added automatically (Pay-per-Token billing on Databricks). Databricks.yml is also added if you prefer to use Databricks Asset Bundles for deployment.
 
 **_Since Databricks Apps on-behalf-of-user authentication is in public preview, you have to activate it in the workspace first._**
 
@@ -66,18 +64,24 @@ The deployment notebook automatically deploys Databricks apps, which takes aroun
 ## Limitations
 - Keep in mind that this isn't for prod use. Although it gives a clear understanding of how you can use it as a template for further development.
 - The model endpoint LLM model requires tool support. Currently tested models:
-  - Claude 3.7: Works really well while being thorough
+  - Claude Sonnet 4.6: Works really well while being thorough
   - GPT-4o: Performs well
   - GPT-4.1 series: Performs well
   - *OpenAI's reasoning models: Performed decently after disabling temperature settings, though still prefer the GPT-4.1 series.
 
-- Recommended models: For the best user-experience, I'd say GPT-4.1 series models or GPT-4o. But Claude 3.7 continues to deliver the best results overall, easily.
+- Recommended models: For the best user-experience, I'd say GPT-4.1 series models or GPT-4o. But Claude Sonnet 4.6 continues to deliver the best results overall, easily.
 - All validation has been done in Azure Databricks.
 
 ---
 
-## Version 1.0 – 23.07.2025
+## Versions
+
+### Version 1.2.1 – 22.02.2026
+Major robustness update with comprehensive test suite, real streaming support, and model upgrade. For a complete list of changes, please read update history from CHANGELOG.md file.
+
+### Version 1.0 – 23.07.2025
 This version includes improved features and refinements across key components. For a complete list of changes, please read update history from CHANGELOG.md file.
+
 * [View changelog](./CHANGELOG.md)
 * *Old version can be found here: [v.0.9](https://github.com/ikidata/multi-genie-agent/tree/version-0.9)*
 

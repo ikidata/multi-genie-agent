@@ -1,13 +1,18 @@
 from typing import Dict, Tuple
 from pydantic import BaseModel, Field, field_validator
 from typing import Optional
-import json 
+import json
 import time
 import mlflow
 from mlflow.entities import SpanType
 
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.core import Config
+
+
+class ToolException(Exception):
+    """Exception raised for Genie tool validation errors."""
+    pass
 
 class GenieRunInput(BaseModel):
     """Pydantic model for validating run_genie inputs."""

@@ -71,9 +71,18 @@ def create_tool_calls_output(results: object) -> dict:
 def prepare_messages_for_llm(messages: list[ChatAgentMessage]) -> list[dict[str, Any]]:
     """Filter out ChatAgentMessage fields that are not compatible with LLM message formats"""
     compatible_keys = ["role", "content", "name", "tool_calls", "tool_call_id"]
-    return [
-        {k: v for k, v in m.model_dump_compat(exclude_none=True).items() if k in compatible_keys} for m in messages
-    ]
+    prepared = []
+    for m in messages:
+        if hasattr(m, 'model_dump_compat'):
+            raw = m.model_dump_compat(exclude_none=True)
+        elif hasattr(m, 'model_dump'):
+            raw = {k: v for k, v in m.model_dump().items() if v is not None}
+        elif isinstance(m, dict):
+            raw = {k: v for k, v in m.items() if v is not None}
+        else:
+            raw = {k: v for k, v in m.__dict__.items() if v is not None}
+        prepared.append({k: v for k, v in raw.items() if k in compatible_keys})
+    return prepared
 
 #@mlflow.trace(name="Call LLM model", span_type='LLM')
 def call_chat_model(openai_client: any, model_name: str, messages: list, temperature: float = 0.1, max_tokens: int = 1000, **kwargs):
@@ -272,7 +281,7 @@ def get_model_list():
 
         # Known recommended models
         known_models = {
-            'databricks-claude-3-7-sonnet': 'Claude 3.7 Sonnet'
+            'databricks-claude-sonnet-4-6': 'Claude Sonnet 4.6'
         }
 
         if model_name in known_models:
@@ -333,7 +342,7 @@ def optimize_conversation_history(messages: List[Dict[str, str]],
                                  max_tokens: int = 100000, 
                                  min_messages: int = 5,
                                  default_messages: int = 25,
-                                 model: str = "databricks-claude-3-7-sonnet") -> List[Dict[str, str]]:
+                                 model: str = "databricks-claude-sonnet-4-6") -> List[Dict[str, str]]:
     """
     Optimizes conversation history to fit within token limits while preserving context.
     
@@ -411,7 +420,7 @@ def optimize_conversation_history(messages: List[Dict[str, str]],
     
     return optimized_messages
 
-def count_tokens(messages: List[Dict[str, str]], model: str = "databricks-claude-3-7-sonnet") -> int:
+def count_tokens(messages: List[Dict[str, str]], model: str = "databricks-claude-sonnet-4-6") -> int:
     """
     Calculate the number of tokens in a list of messages.
     

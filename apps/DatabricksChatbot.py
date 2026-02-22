@@ -74,11 +74,16 @@ class DatabricksChatbot:
         self._create_callbacks()
         self._add_custom_css()
 
+        # Global lock protects access to the per-user dictionaries themselves
+        self._global_lock = threading.Lock()
+
         # Instance-level dictionaries for user data
-        self.chunk_queues = {}     # Per-user queue for streaming response chunks  
-        self.user_threads = {}     # username_key -> threading.Thread  
-        self.user_queues = {}      # username_key -> queue.Queue  
-        self.user_locks = {}       # username_key -> threading.Lock (to protect thread start)    
+        self.chunk_queues = {}     # Per-user queue for streaming response chunks
+        self.user_threads = {}     # username_key -> threading.Thread
+        self.user_queues = {}      # username_key -> queue.Queue
+        self.user_locks = {}       # username_key -> threading.Lock (to protect thread start)
+        self.streaming_done = {}   # username_key -> bool (server-side completion flag)
+        self.accumulated_chunks = {}  # username_key -> list (server-side chunk storage, survives stale callback overwrites)
 
     def get_configs(self):
         """
@@ -123,19 +128,18 @@ class DatabricksChatbot:
 
         # Use username as the session identifier instead of generating a UUID
         username_key = user_name.lower()
-    
-        # Reset user thread and queue data when starting a new session
-        if username_key in self.user_threads:
-            # Clean up any running thread for this user
-            if self.user_threads[username_key].is_alive():
-                # Can't actually stop the thread, but it can be removed from dictionary
-                self.logger.info(f"Clearing previous thread for user {username_key}")
-            del self.user_threads[username_key]
-        
-        # Clear the queue for this user
-        if username_key in self.chunk_queues:
-            self.logger.info(f"Clearing previous chunk queue for user {username_key}")
-            self.chunk_queues[username_key] = queue.Queue()  
+
+        # Reset user thread and queue data when starting a new session (thread-safe)
+        with self._global_lock:
+            if username_key in self.user_threads:
+                if self.user_threads[username_key].is_alive():
+                    self.logger.info(f"Clearing previous thread for user {username_key}")
+                del self.user_threads[username_key]
+
+            # Clear/create the chunk queue and server-side accumulator for this user
+            self.chunk_queues[username_key] = queue.Queue()
+            self.accumulated_chunks[username_key] = []
+            self.streaming_done[username_key] = False
 
         user_name_cleaned = user_name.split('@')[0].capitalize()   # Cleaning user name
         default_message = f"Hello {user_name_cleaned}! Welcome to the Agentic Multi-Genie solution on Databricks 🤖 On the right, you’ll find options for fine-tuning your agent — including selecting Active Genie Spaces, which LLM model to use, Activating ReAct and choosing max output tokens. You can also view the current message history on the right.\n\n💡Start utilizing your internal team of Genies for smarter, faster and automated data analysis."
@@ -226,7 +230,7 @@ class DatabricksChatbot:
                                 dcc.Dropdown(
                                     id='model-dropdown',
                                     options=llm_model_list,
-                                    value='databricks-claude-3-7-sonnet',
+                                    value='databricks-claude-sonnet-4-6',
                                     style={'width': '100%'}
                                 )
                             ], className="flex-grow-1 d-flex align-items-center", style={'width': '100%'})
@@ -311,7 +315,7 @@ class DatabricksChatbot:
             ], className="g-0 content-row"),
             
             # Add interval for streaming updates
-            dcc.Interval(id='streaming-interval', interval=200, disabled=True),  ## Adding a bit extra latency due to possible loading slowness
+            dcc.Interval(id='streaming-interval', interval=100, disabled=True),  # 100ms for snappier streaming updates
             
             # Store for session-specific data
             dcc.Store(id='session-id', data=username_key),
@@ -332,7 +336,7 @@ class DatabricksChatbot:
 
             # Store for user settings with default parameters
             dcc.Store(id='llm-params-store', data={
-                'model': 'databricks-claude-3-7-sonnet',
+                'model': 'databricks-claude-sonnet-4-6',
                 'react_agent': 'no',
                 'max_tokens': 1000,
                 'genie_spaces': []
@@ -356,38 +360,50 @@ class DatabricksChatbot:
         ], fluid=True, className="p-2 d-flex flex-column chat-container")
 
 
-    def _start_user_worker(self, username_key):  
-        """Start the per-user streaming worker if not already running."""  
-        if username_key not in self.user_queues:  
-            self.user_queues[username_key] = queue.Queue()  
-        if username_key not in self.user_locks:  
-            self.user_locks[username_key] = threading.Lock()  
-    
-        lock = self.user_locks[username_key]  
-    
-        with lock:  
-            thread = self.user_threads.get(username_key)  
-            if thread and thread.is_alive():  
-                # Already running  
-                return  
-    
-            def worker():  
-                while True:  
-                    request = self.user_queues[username_key].get()  
-                    if request is None:  # Sentinel to stop thread  
-                        break  
-                    chat_history, user_name, obo_token, llm_params = request  
-                    try:  
-                        self._streaming_worker(chat_history, username_key, user_name, obo_token, llm_params)  
-                    except Exception as e:  
-                        self.logger.error(f"Exception in streaming_worker {username_key}: {e}")  
-                    self.user_queues[username_key].task_done()  
-    
-                self.logger.info(f"Worker thread for {username_key} exiting.")  
-    
-            thread = threading.Thread(target=worker, daemon=True)  
-            thread.start()  
-            self.user_threads[username_key] = thread  
+    def _start_user_worker(self, username_key):
+        """Start the per-user streaming worker if not already running."""
+        with self._global_lock:
+            if username_key not in self.user_queues:
+                self.user_queues[username_key] = queue.Queue()
+            if username_key not in self.user_locks:
+                self.user_locks[username_key] = threading.Lock()
+            if username_key not in self.chunk_queues:
+                self.chunk_queues[username_key] = queue.Queue()
+
+        lock = self.user_locks[username_key]
+
+        with lock:
+            thread = self.user_threads.get(username_key)
+            if thread and thread.is_alive():
+                return
+
+            def worker():
+                while True:
+                    try:
+                        request = self.user_queues[username_key].get(timeout=300)
+                    except queue.Empty:
+                        self.logger.info(f"Worker thread for {username_key} idle timeout, exiting.")
+                        break
+                    if request is None:  # Sentinel to stop thread
+                        break
+                    chat_history, user_name, obo_token, llm_params = request
+                    try:
+                        self._streaming_worker(chat_history, username_key, user_name, obo_token, llm_params)
+                    except Exception as e:
+                        self.logger.error(f"Exception in streaming_worker {username_key}: {e}")
+                        # Ensure completion sentinel is always sent even on error
+                        try:
+                            self.chunk_queues[username_key].put("__STREAMING_COMPLETE__")
+                            self.streaming_done[username_key] = True
+                        except Exception:
+                            self.streaming_done[username_key] = True
+                    self.user_queues[username_key].task_done()
+
+                self.logger.info(f"Worker thread for {username_key} exiting.")
+
+            thread = threading.Thread(target=worker, daemon=True)
+            thread.start()
+            self.user_threads[username_key] = thread
 
     def _streaming_worker(self, messages: list, username_key: str, user_name: str, obo_token:str, llm_params: dict = None):
         """Background worker to fetch chunks and add them to the queue"""
@@ -395,10 +411,10 @@ class DatabricksChatbot:
             # Use default LLM parameters if missing  
             if not llm_params:  
                 llm_params = {  
-                    'model': 'databricks-claude-3-7-sonnet',  
-                    'react_agent': 'no',  
-                    'max_tokens': 1000,  
-                    'genie_spaces': {}  
+                    'model': 'databricks-claude-sonnet-4-6',
+                    'react_agent': 'no',
+                    'max_tokens': 1000,
+                    'genie_spaces': {}
                 }  
     
             # Ensure chunk queue exists — created when user started streaming  
@@ -408,29 +424,35 @@ class DatabricksChatbot:
                 chunk_queue = queue.Queue()  
                 self.chunk_queues[username_key] = chunk_queue  
     
-            chunk_count = 0  
-            # Stream chunks from your model endpoint (blocking call)  
-            for chunk in self._call_model_endpoint_streaming(  
-                messages=messages,  
-                user_name=user_name,  
-                obo_token=obo_token,  
-                model=llm_params.get('model'),  
-                react_agent=llm_params.get('react_agent'),  
-                max_tokens=llm_params.get('max_tokens'),  
-                genie_spaces=llm_params.get('genie_spaces')  
-            ):  
-                if chunk:  
-                    self.chunk_queues[username_key].put(chunk)  
+            chunk_count = 0
+            # Ensure server-side accumulator exists
+            if username_key not in self.accumulated_chunks:
+                self.accumulated_chunks[username_key] = []
+            # Stream chunks from your model endpoint (blocking call)
+            for chunk in self._call_model_endpoint_streaming(
+                messages=messages,
+                user_name=user_name,
+                obo_token=obo_token,
+                model=llm_params.get('model'),
+                react_agent=llm_params.get('react_agent'),
+                max_tokens=llm_params.get('max_tokens'),
+                genie_spaces=llm_params.get('genie_spaces')
+            ):
+                if chunk:
+                    self.accumulated_chunks[username_key].append(chunk)
+                    self.chunk_queues[username_key].put(chunk)
                     chunk_count += 1  
     
-            self.logger.info(f"[{user_name}] Streaming complete, added {chunk_count} chunks")  
-            # Signal streaming completion with a special sentinel  
-            self.chunk_queues[username_key].put("__STREAMING_COMPLETE__")  
-    
-        except Exception as e:  
-            self.logger.error(f"[{user_name}] Error in streaming worker: {str(e)}")  
-            self.chunk_queues[username_key].put(f"ERROR: {str(e)}")  
-            self.chunk_queues[username_key].put("__STREAMING_COMPLETE__")  
+            self.logger.info(f"[{user_name}] Streaming complete, added {chunk_count} chunks")
+            # Signal streaming completion with a special sentinel
+            self.chunk_queues[username_key].put("__STREAMING_COMPLETE__")
+            self.streaming_done[username_key] = True
+
+        except Exception as e:
+            self.logger.error(f"[{user_name}] Error in streaming worker: {str(e)}")
+            self.chunk_queues[username_key].put(f"ERROR: {str(e)}")
+            self.chunk_queues[username_key].put("__STREAMING_COMPLETE__")
+            self.streaming_done[username_key] = True  
 
     def _create_callbacks(self):
         @self.app.callback(
@@ -451,39 +473,51 @@ class DatabricksChatbot:
             prevent_initial_call=True
         )
         
-        def update_chat(send_clicks, user_submit, user_input, chat_history, username_key, user_name, obo_token, llm_params):  
+        def update_chat(send_clicks, user_submit, user_input, chat_history, username_key, user_name, obo_token, llm_params):
             """
             Updates the chat conversation by appending the user input, starts a background thread to stream the assistant's response and manages the chat display and streaming state for real-time updates.
             """
             if not user_input:
                 return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
-            # Initialize chat_history with system message if it doesn't exist  
-            if not chat_history:  
-                chat_history = [{"role": "system", "content": self.system_prompt}]  
-            else:  
-                chat_history = chat_history or []  
-            
+            # Initialize chat_history with system message if it doesn't exist
+            if not chat_history:
+                chat_history = [{"role": "system", "content": self.system_prompt}]
+            else:
+                chat_history = chat_history or []
+
             # Add user message
             chat_history.append({'role': 'user', 'content': user_input})
-            
+
             # Format the chat display with user message
             chat_display = self._format_chat_display(chat_history)
-            chat_display.append(self._create_typing_indicator())  
-        
-            # Ensure per-user worker thread is running  
-            self._start_user_worker(username_key)  
-        
-            # Enqueue the request for streaming  
-            self.user_queues[username_key].put((chat_history, user_name, obo_token, llm_params))  
-        
-            streaming_state = {  
-                'streaming': True,  
-                'chunks': [],  
-                'session_id': username_key  
-            }  
+            chat_display.append(self._create_typing_indicator())
 
-            # Don't clear input field yet, disabling input meanwhile  
+            # Reset server-side streaming state and drain stale queue contents
+            self.streaming_done[username_key] = False
+            self.accumulated_chunks[username_key] = []
+            chunk_queue = self.chunk_queues.get(username_key)
+            if chunk_queue:
+                try:
+                    while not chunk_queue.empty():
+                        chunk_queue.get_nowait()
+                except queue.Empty:
+                    pass
+
+            # Ensure per-user worker thread is running
+            self._start_user_worker(username_key)
+
+            # Enqueue the request for streaming
+            self.user_queues[username_key].put((chat_history, user_name, obo_token, llm_params))
+
+            streaming_state = {
+                'streaming': True,
+                'chunks': [],
+                'session_id': username_key,
+                'start_time': time.time()
+            }
+
+            # Don't clear input field yet, disabling input meanwhile
             return chat_display, chat_history, '', streaming_state, False, True  
 
         @self.app.callback(
@@ -503,389 +537,169 @@ class DatabricksChatbot:
 
         def update_streaming(n_intervals, streaming_state, chat_display, chat_history, username_key, user_name):
             """
-            Handles periodic updates of the streaming assistant response by processing received chunks, updating the chat display and history, managing typing indicators, handling completion and timeout conditions, and ensuring proper synchronization and UI feedback during the streaming process.
+            Handles periodic updates of the streaming assistant response by draining
+            the chunk queue and updating the UI.
+
+            Key design: Chunks are accumulated SERVER-SIDE in self.accumulated_chunks
+            so they survive stale callback overwrites. The client-side streaming_state
+            only tracks control flags (streaming, start_time, completion_handled).
+            chat_history is only updated once when streaming completes.
             """
-            # Create a deep copy of streaming_state to avoid reference issues
-            streaming_state = dict(streaming_state) if streaming_state else {}
+            try:
+                streaming_state = dict(streaming_state) if streaming_state else {}
 
-            # If streaming is already marked as complete or completion was already handled,
-            # immediately disable the interval and return without any further processing
-            if not streaming_state.get('streaming') or streaming_state.get('completion_handled'):
-                return dash.no_update, dash.no_update, streaming_state, True, False
-            
-            # Get the thread-safe queue for current user or create a new one if it doesn't exist
-            chunk_queue = self.chunk_queues.get(username_key)
-            if not chunk_queue:
-                self.logger.debug(f"[{user_name}] Creating new queue for user {username_key}")
-                self.chunk_queues[username_key] = queue.Queue()
-                chunk_queue = self.chunk_queues[username_key]
+                if not streaming_state.get('streaming') or streaming_state.get('completion_handled'):
+                    return dash.no_update, dash.no_update, streaming_state, True, False
 
-            chunks_to_process = []  
-        
-            if chunk_queue:  
-                try:  
-                    while True:  
-                        chunk = chunk_queue.get_nowait()  
-                        chunks_to_process.append(chunk)  
-                except queue.Empty:  
-                    pass 
-            
-            # Check for streaming complete marker in the queue
-            streaming_complete = "__STREAMING_COMPLETE__" in chunks_to_process
-            
-            # Remove completion marker for processing  
-            chunks_to_display = [c for c in chunks_to_process if c != "__STREAMING_COMPLETE__"]  
-        
-            # Copy the current chat display or initialize  
-            new_chat_display = chat_display.copy() if chat_display else []  
+                # 1. Check completion from server-side flag (authoritative)
+                streaming_complete = self.streaming_done.get(username_key, False)
 
-            # Check if typing indicator exists and remove it
-            typing_indicator_removed = False
-            typing_indicator_index = None
-            for i, div in enumerate(new_chat_display):
-                if 'typing-message' in str(div):
-                    new_chat_display.pop(i)
-                    typing_indicator_removed = True
-                    typing_indicator_index = i
-                    break
-            
+                # Also drain the queue to keep it from growing (but chunks are
+                # already in self.accumulated_chunks, so we only need the sentinel)
+                chunk_queue = self.chunk_queues.get(username_key)
+                if chunk_queue:
+                    try:
+                        while True:
+                            item = chunk_queue.get_nowait()
+                            if item == "__STREAMING_COMPLETE__":
+                                streaming_complete = True
+                    except queue.Empty:
+                        pass
 
-            # Process streaming complete marker first before any forced completion
-            if streaming_complete:
-                # Mark that completion has been handled to avoid race conditions
-                streaming_state['completion_handled'] = True
-                streaming_state['streaming'] = False
-                
-                # Collect chunks to display - combine them for better markdown rendering
-                combined_content = ""
-                genie_chunks = []
-                
-                for chunk in chunks_to_display:
-                    # Special handling for Genie chunks
-                    if chunk.startswith("🧞‍♂️ Genie") and chunk.endswith("activated"):
-                        genie_chunks.append(chunk)
+                # 2. Read ALL accumulated chunks from server-side storage (survives stale overwrites)
+                accumulated = list(self.accumulated_chunks.get(username_key, []))
+
+                # 3. Separate accumulated chunks into content vs genie activation messages
+                all_content = ""
+                genie_messages = []
+                for chunk in accumulated:
+                    if chunk.startswith("\U0001f9de\u200d\u2642\ufe0f Genie") and chunk.endswith("activated"):
+                        if chunk not in genie_messages:
+                            genie_messages.append(chunk)
                     else:
-                        # Combine regular content chunks
-                        combined_content += chunk
+                        all_content += chunk
 
-                # If combined content exists, add it to chat history and display
-                if combined_content:
-                    if chat_history is None:
-                        chat_history = []
-                    
-                    # Add the combined content as a single message
-                    chat_history.append({'role': 'assistant', 'content': combined_content})
-                    
-                    # Generate a unique key for this content
-                    content_key = f"{time.time()}"
-                    
-                    # Create a message container with Markdown support
-                    content_container = html.Div([
+                # 4. Check timeout with both relative and absolute safety mechanisms
+                timed_out = False
+                timeout_threshold = 15
+                prev_chunk_count = streaming_state.get('_prev_chunk_count', 0)
+                current_chunk_count = len(accumulated)
+                has_new_chunks = current_chunk_count > prev_chunk_count
+                streaming_state['_prev_chunk_count'] = current_chunk_count
+
+                if not streaming_complete:
+                    current_time = time.time()
+
+                    # Track last chunk arrival time
+                    last_update_time = streaming_state.get('last_update_time')
+                    if has_new_chunks:
+                        streaming_state['last_update_time'] = current_time
+                        last_update_time = current_time
+                    has_active_genie = len(genie_messages) > 0
+                    timeout_threshold = 60 if has_active_genie else 15
+
+                    # Relative timeout: no new chunks for threshold seconds
+                    if last_update_time is not None:
+                        timed_out = (current_time - last_update_time > timeout_threshold)
+
+                    # Absolute safety timeout: prevent infinite streaming even if
+                    # no chunks ever arrived (e.g., sentinel lost or callback issue)
+                    start_time = streaming_state.get('start_time')
+                    if start_time is not None:
+                        absolute_elapsed = current_time - start_time
+                        absolute_limit = 120 if has_active_genie else 30
+                        if absolute_elapsed > absolute_limit:
+                            timed_out = True
+                            self.logger.warning(
+                                f"[{username_key}] Absolute safety timeout after {absolute_elapsed:.0f}s"
+                            )
+
+                is_done = streaming_complete or timed_out
+
+                # 5. Rebuild base display from chat_history (avoids expensive str() serialization)
+                base_display = self._format_chat_display(chat_history) if chat_history else []
+
+                # 6. Add single accumulated content message (replaces previous on each tick)
+                if all_content:
+                    base_display.append(html.Div([
                         dcc.Markdown(
-                            combined_content,
+                            all_content,
                             className="chat-message assistant-message chunk-message",
                             dangerously_allow_html=True
                         )
-                    ], className="message-container assistant-container", id=f"chunk-{content_key}")
-                    
-                    # Add the content to the display
-                    new_chat_display.append(content_container)
-                
-                # Now handle any Genie chunks separately
-                for genie_chunk in genie_chunks:
-                    # Check if this Genie is already in the display to avoid duplicates
-                    genie_exists = False
-                    for div in new_chat_display:
-                        if genie_chunk in str(div):
-                            genie_exists = True
-                            break
-                    
-                    if not genie_exists:
-                        # Create a special message container with GIF for tool call
-                        tool_call_container = html.Div([
+                    ], className="message-container assistant-container", id="streaming-content"))
+
+                # 7. Add genie activation messages
+                for idx, genie_chunk in enumerate(genie_messages):
+                    genie_name = genie_chunk.split("'")[1] if "'" in genie_chunk else "Unknown"
+                    if is_done:
+                        if timed_out and not streaming_complete:
+                            status_msg = f"\U0001f9de Genie '{genie_name}' operation was interrupted"
+                        else:
+                            status_msg = f"\U0001f9de Genie '{genie_name}' processed successfully"
+                        base_display.append(html.Div([
+                            html.Div(status_msg, className="chat-message assistant-message chunk-message")
+                        ], className="message-container assistant-container", id=f"genie-status-{idx}"))
+                    else:
+                        base_display.append(html.Div([
                             html.Div([
                                 html.Img(src="/assets/genie_loading.gif", style={'height': '100px', 'width': 'auto'}),
                                 html.Div(genie_chunk, style={'marginTop': '10px'})
-                            ], className="chat-message assistant-message chunk-message", 
+                            ], className="chat-message assistant-message chunk-message",
                             style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center'})
-                        ], className="message-container assistant-container", id=f"tool-call-{time.time()}")
-                        
-                        # Add the special container to the display
-                        new_chat_display.append(tool_call_container)
-                        
-                        # Also add to chat history
-                        if chat_history is None:
-                            chat_history = []
-                        chat_history.append({'role': 'assistant', 'content': genie_chunk})
-                
-                # Find any tool call GIF boxes and convert them to success messages
-                i = 0
-                while i < len(new_chat_display):
-                    if '/assets/genie_loading.gif' in str(new_chat_display[i]):
-                        # Using regex to find Genie ID
-                        try:
-                            genie_name = (re.search(r"🧞\u200d♂️ Genie '([^']+)' activated", json.dumps(new_chat_display[i], ensure_ascii=False)) or [None, ""])[1]
-                        except:
-                            genie_name = "missing"
+                        ], className="message-container assistant-container", id=f"genie-status-{idx}"))
 
-                        # Replace with success message
-                        normal_container = html.Div([
-                            html.Div(f"🧞 Genie '{genie_name}' processed successfully", className="chat-message assistant-message chunk-message")
-                        ], className="message-container assistant-container")
-                        
-                        new_chat_display[i] = normal_container
-                    i += 1
-                
-                self.logger.info(f"[{user_name}] Streaming completed, disabling interval")
-                
-                # Optimize conversation history
-                if chat_history:
-                    original_stats = {
-                        'length': len(chat_history),
-                        'tokens': count_tokens(chat_history)
-                    }
-                    
-                    # Optimize the conversation history
-                    chat_history = optimize_conversation_history(chat_history)
-                    
-                    # Get updated stats
-                    updated_stats = {
-                        'length': len(chat_history),
-                        'tokens': count_tokens(chat_history)
-                    }
-                    
-                    # Log the results optimization process results
-                    if original_stats['tokens'] != updated_stats['tokens']:
-                        self.logger.info(
-                            f"[{user_name}] Chat history optimized: {original_stats['length']} → {updated_stats['length']} messages, "
-                            f"{original_stats['tokens']} → {updated_stats['tokens']} tokens"
-                        )
-                    else:
-                        self.logger.info(
-                            f"[{user_name}] Current history: {updated_stats['length']} messages, {updated_stats['tokens']} tokens"
-                        )
+                # 8. Add fallback for timeout with no content at all
+                if timed_out and not all_content and not genie_messages:
+                    fallback_text = "Sorry, I got lost in my thoughts. Could you please repeat your question?"
+                    base_display.append(html.Div([
+                        dcc.Markdown(fallback_text, className="chat-message assistant-message")
+                    ], className="message-container assistant-container"))
+                    all_content = fallback_text
 
-            else:
-                # Get the current time and the last update time
-                current_time = time.time()
-                last_update_time = streaming_state.get('last_update_time', current_time) 
-                
-                # Update the last update time if we have new chunks
-                if chunks_to_process:
-                    streaming_state['last_update_time'] = current_time
-                
-                # Check if there are any active Genie operations (loading GIFs) in the chat display
-                has_active_genie = False
-                for div in new_chat_display:
-                    if '/assets/genie_loading.gif' in str(div):
-                        has_active_genie = True
-                        break
-                
-                # Adding safety timeout - only consider timeout if:
-                # 1. There are no active Genie operations
-                # 2. It's been more than 60 seconds since the last update (even with active Genies)
-                short_timeout = 5  # 5 seconds for normal operations
-                long_timeout = 60  # 60 seconds even with active Genies
-
-                timed_out = False
-                if has_active_genie:
-                    # Use long timeout for active Genie operations
-                    timed_out = (current_time - last_update_time > long_timeout)
-                    if timed_out:
-                        self.logger.info(f"Forcing stream completion for {username_key} - Genie operation timed out after {long_timeout} seconds")
-                else:
-                    # Use short timeout for normal operations
-                    timed_out = (current_time - last_update_time > short_timeout)
-                    if timed_out:
-                        self.logger.info(f"Forcing stream completion for {username_key} - timed out after {short_timeout} seconds")
-                
-                # If timed out, force completion
-                if timed_out:
+                # 9. Handle final state
+                if is_done:
                     streaming_state['streaming'] = False
                     streaming_state['completion_handled'] = True
-                    
-                    # Process any remaining chunks
-                    chunks_to_display = [chunk for chunk in chunks_to_process if chunk != "__STREAMING_COMPLETE__"]
-                    
-                    # Collect chunks to display - combine them for better Markdown rendering
-                    combined_content = ""
-                    genie_chunks = []
-                    
-                    for chunk in chunks_to_display:
-                        # Special handling for Genie chunks
-                        if chunk.startswith("🧞‍♂️ Genie") and chunk.endswith("activated"):
-                            genie_chunks.append(chunk)
+
+                    if streaming_complete:
+                        self.logger.info(f"[{user_name}] Streaming completed, disabling interval")
+                    else:
+                        self.logger.info(f"Forcing stream completion for {username_key} - timed out after {timeout_threshold} seconds")
+
+                    # Update chat_history ONCE with the complete response
+                    updated_history = list(chat_history) if chat_history else []
+                    if all_content:
+                        updated_history.append({'role': 'assistant', 'content': all_content})
+                    for gm in genie_messages:
+                        updated_history.append({'role': 'assistant', 'content': gm})
+
+                    # Optimize conversation history
+                    if updated_history:
+                        original_len, original_tokens = len(updated_history), count_tokens(updated_history)
+                        updated_history = optimize_conversation_history(updated_history)
+                        new_len, new_tokens = len(updated_history), count_tokens(updated_history)
+                        if original_tokens != new_tokens:
+                            self.logger.info(
+                                f"[{user_name}] Chat history optimized: {original_len} -> {new_len} messages, "
+                                f"{original_tokens} -> {new_tokens} tokens"
+                            )
                         else:
-                            # Combine regular content chunks
-                            combined_content += chunk
-                    
-                    # If we have combined content, add it to chat history and display
-                    if combined_content:
-                        if chat_history is None:
-                            chat_history = []
-                        
-                        # Add the combined content as a single message
-                        chat_history.append({'role': 'assistant', 'content': combined_content})
-                        
-                        # Generate a unique key for this content
-                        content_key = f"{time.time()}"
-                        
-                        # Create a message container with Markdown support
-                        content_container = html.Div([
-                            dcc.Markdown(
-                                combined_content,
-                                className="chat-message assistant-message chunk-message",
-                                dangerously_allow_html=True
-                            )
-                        ], className="message-container assistant-container", id=f"chunk-{content_key}")
-                        
-                        # Add the content to the display
-                        new_chat_display.append(content_container)
-                    
-                    # Now handle any Genie chunks separately
-                    for genie_chunk in genie_chunks:
-                        # Check if this Genie is already in the display to avoid duplicates
-                        genie_exists = False
-                        for div in new_chat_display:
-                            if genie_chunk in str(div):
-                                genie_exists = True
-                                break
-                        
-                        if not genie_exists:
-                            # Create a special message container with GIF for tool call
-                            tool_call_container = html.Div([
-                                html.Div([
-                                    html.Img(src="/assets/genie_loading.gif", style={'height': '100px', 'width': 'auto'}),
-                                    html.Div(genie_chunk, style={'marginTop': '10px'})
-                                ], className="chat-message assistant-message chunk-message", 
-                                style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center'})
-                            ], className="message-container assistant-container", id=f"tool-call-{time.time()}")
-                            
-                            # Add the special container to the display
-                            new_chat_display.append(tool_call_container)
-                            
-                            # Also add to chat history
-                            if chat_history is None:
-                                chat_history = []
-                            chat_history.append({'role': 'assistant', 'content': genie_chunk})
-                    
-                    # Add fallback message if typing indicator was removed and no content was added
-                    if typing_indicator_removed and not combined_content and not genie_chunks:
-                        fallback_message = html.Div([
-                            dcc.Markdown(
-                                "Sorry, I got lost in my thoughts. Could you please repeat your question?",
-                                className="chat-message assistant-message"
-                            )
-                        ], className="message-container assistant-container")
-                        
-                        new_chat_display.append(fallback_message)
-                        
-                        # Also add to chat history
-                        if chat_history is None:
-                            chat_history = []
-                        chat_history.append({
-                            'role': 'assistant', 
-                            'content': "Sorry, I got lost in my thoughts. Could you please repeat your question?"
-                        })
-                        
-                        self.logger.info(f"Added fallback message for {username_key}")
-                    
-                    # Convert any remaining genie loading GIFs based on whether we had to add a fallback
-                    i = 0
-                    while i < len(new_chat_display):
-                        if '/assets/genie_loading.gif' in str(new_chat_display[i]):
-                            try:
-                                genie_name = (re.search(r"🧞\u200d♂️ Genie '([^']+)' activated", json.dumps(new_chat_display[i], ensure_ascii=False)) or [None, ""])[1]
-                            except:
-                                genie_name = "missing"
+                            self.logger.info(f"[{user_name}] Current history: {new_len} messages, {new_tokens} tokens")
 
-                            # If we had to add a fallback message, show interrupted; otherwise show success
-                            if typing_indicator_removed and not combined_content and not genie_chunks:
-                                message = f"🧞 Genie '{genie_name}' operation was interrupted"
-                            else:
-                                message = f"🧞 Genie '{genie_name}' processed successfully"
+                    return base_display, updated_history, streaming_state, True, False
 
-                            normal_container = html.Div([
-                                html.Div(message, className="chat-message assistant-message chunk-message")
-                            ], className="message-container assistant-container")
-                            
-                            new_chat_display[i] = normal_container
-                            self.logger.info(f"Converted Genie loading GIF to {'interrupted' if 'interrupted' in message else 'success'} message for {username_key}")
-                        i += 1
-                    
-                    # Log conversation stats
-                    if chat_history:
-                        self.logger.info(f"[{user_name}] Current history: {len(chat_history)} messages, {count_tokens(chat_history)} tokens")
                 else:
-                    # Normal streaming update - process chunks and add typing indicator
-                    chunks_to_display = [chunk for chunk in chunks_to_process if chunk != "__STREAMING_COMPLETE__"]
+                    # Still streaming - add typing indicator and DON'T update chat_history
+                    base_display.append(self._create_typing_indicator())
+                    return base_display, dash.no_update, streaming_state, False, True
 
-                    # Collect chunks to display - combine them for better Markdown rendering
-                    combined_content = ""
-                    genie_chunks = []
-                    
-                    for chunk in chunks_to_display:
-                        # Special handling for Genie chunks
-                        if chunk.startswith("🧞‍♂️ Genie") and chunk.endswith("activated"):
-                            genie_chunks.append(chunk)
-                        else:
-                            # Combine regular content chunks
-                            combined_content += chunk
-                    
-                    # If we have combined content, add it to chat history and display
-                    if combined_content:
-                        if chat_history is None:
-                            chat_history = []
-                        
-                        # Add the combined content as a single message
-                        chat_history.append({'role': 'assistant', 'content': combined_content})
-                        
-                        # Generate a unique key for this content
-                        content_key = f"{time.time()}"
-                        
-                        # Create a message container with Markdown support
-                        content_container = html.Div([
-                            dcc.Markdown(
-                                combined_content,
-                                className="chat-message assistant-message chunk-message",
-                                dangerously_allow_html=True
-                            )
-                        ], className="message-container assistant-container", id=f"chunk-{content_key}")
-                        
-                        # Add the content to the display
-                        new_chat_display.append(content_container)
-                    
-                    # Now handle any Genie chunks separately
-                    for genie_chunk in genie_chunks:
-                        # Check if this Genie is already in the display to avoid duplicates
-                        genie_exists = False
-                        for div in new_chat_display:
-                            if genie_chunk in str(div):
-                                genie_exists = True
-                                break
-                        
-                        if not genie_exists:
-                            # Create a special message container with GIF for tool call
-                            tool_call_container = html.Div([
-                                html.Div([
-                                    html.Img(src="/assets/genie_loading.gif", style={'height': '100px', 'width': 'auto'}),
-                                    html.Div(genie_chunk, style={'marginTop': '10px'})
-                                ], className="chat-message assistant-message chunk-message", 
-                                style={'display': 'flex', 'flexDirection': 'column', 'alignItems': 'center'})
-                            ], className="message-container assistant-container", id=f"tool-call-{time.time()}")
-                            
-                            # Add the special container to the display
-                            new_chat_display.append(tool_call_container)
-                            
-                            # Also add to chat history
-                            if chat_history is None:
-                                chat_history = []
-                            chat_history.append({'role': 'assistant', 'content': genie_chunk})
-                    
-                    # Add typing indicator back if we're still streaming
-                    new_chat_display.append(self._create_typing_indicator())
-            
-            return new_chat_display, chat_history, streaming_state, False, True
+            except Exception as e:
+                self.logger.error(f"[{user_name}] Error in update_streaming: {str(e)}")
+                streaming_state = streaming_state if isinstance(streaming_state, dict) else {}
+                streaming_state['streaming'] = False
+                streaming_state['completion_handled'] = True
+                return dash.no_update, dash.no_update, streaming_state, True, False
 
         @self.app.callback(
             Output('user-input', 'disabled'),
@@ -903,6 +717,7 @@ class DatabricksChatbot:
             Output('chat-history', 'children', allow_duplicate=True),
             Output('streaming-state', 'data', allow_duplicate=True),
             Output('streaming-interval', 'disabled', allow_duplicate=True),
+            Output('processing-flag', 'data', allow_duplicate=True),
             Input('clear-button', 'n_clicks'),
             State('session-id', 'data'),
             State('user-name-store', 'data'),
@@ -910,28 +725,29 @@ class DatabricksChatbot:
         )
         def clear_chat(n_clicks, username_key, user_name):
             """
-            Clears the chat history and message queues for a user, resets the streaming state and logs the action when the clear chat button is clicked
+            Clears the chat history and message queues for a user, resets the streaming state.
             """
             if n_clicks:
-                # Clean up any running thread for this user
-                if username_key in self.user_threads and self.user_threads[username_key].is_alive():
-                    # Can't actually stop the thread, but can remove it from the dictionary
-                    del self.user_threads[username_key]
-                
-                # Clear the queue for this user
-                if username_key in self.chunk_queues:
-                    self.chunk_queues[username_key] = queue.Queue()  
-                
-                # Reset streaming state
+                with self._global_lock:
+                    # Clean up running thread for this user
+                    if username_key in self.user_threads and self.user_threads[username_key].is_alive():
+                        del self.user_threads[username_key]
+
+                    # Clear the chunk queue for this user
+                    self.chunk_queues[username_key] = queue.Queue()
+
+                # Reset server-side streaming state
+                self.streaming_done[username_key] = True
+                self.accumulated_chunks[username_key] = []
+
                 streaming_state = {
                     'streaming': False,
                     'chunks': [],
                     'session_id': username_key
                 }
                 self.logger.info(f"[{user_name}] Cleared chat and message history for user {username_key}")
-                return [], [], streaming_state, True
-            self.logger.info(f"[{user_name}] Cleared chat and message history for user {username_key}")
-            return dash.no_update, dash.no_update, dash.no_update, dash.no_update
+                return [], [], streaming_state, True, False
+            return dash.no_update, dash.no_update, dash.no_update, dash.no_update, dash.no_update
 
         # Added callback for getting parameter values from options
         @self.app.callback(
@@ -962,7 +778,7 @@ class DatabricksChatbot:
 
             # Create a dictionary with all the settings
             settings = {
-                'model': model or 'databricks-claude-3-7-sonnet',          
+                'model': model or 'databricks-claude-sonnet-4-6',          
                 'react_agent': react_agent,                        
                 'max_tokens': max_tokens,                       
                 'genie_spaces': active_genie_spaces                     
