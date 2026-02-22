@@ -3,6 +3,55 @@
 All notable changes to this project will be documented in this file.
 
 ---
+## [1.2.1] - 2026-02-22
+### Fixed
+- **Critical: Streaming UI not updating messages** - Each 100ms interval tick created a NEW message bubble instead of updating a single one, causing fragmented display and stuck typing indicator
+- `update_streaming` callback rewritten with chunk accumulation: all chunks now stored in `streaming_state['chunks']` across ticks and rebuilt as a single message on each tick
+- `chat_history` is no longer polluted with partial entries on every tick; only updated once on streaming completion
+- Genie loading GIFs now rendered inline during streaming and converted to final status on completion
+- Inter-chunk timeout increased from 5s to 15s (was too aggressive for normal LLM response times)
+- Removed dead `_process_chunks_to_display()` and `_convert_genie_gifs()` helper methods (logic now inline in rewritten callback)
+- Updated tests: replaced old helper method tests with `TestStreamingAccumulation` suite (10 tests covering chunk accumulation, display filtering, genie dedup, history management)
+
+---
+## [1.2.0] - 2026-02-22
+### Added
+- CLAUDE.md documentation for AI-assisted development
+- Comprehensive test suite (135 tests) covering all modules:
+  - `test_general_functions.py` - clean_text, tool creation, LLM calls, token counting, Pydantic models
+  - `test_genie_functions.py` - Genie Space API, conversation management, input validation
+  - `test_agents.py` - ReAct and Simple agent initialization, tool calling, prediction
+  - `test_chatbot.py` - DatabricksChatbot layout, streaming, chunk processing, CSS, thread management
+  - `test_app.py` - SSE endpoint, logger setup
+- `conftest.py` with shared pytest fixtures (mocked WorkspaceClient, OpenAI, Flask context)
+- `pytest.ini` configuration
+- Server-Sent Events (SSE) streaming endpoint (`/api/stream/<username>`) for real-time streaming support
+- `ToolException` class in `genie_functions.py` (previously referenced but never defined)
+- Global `_global_lock` for thread-safe access to per-user dictionaries
+- Error boundary in `update_streaming` callback with graceful fallback on exceptions
+- Worker thread idle timeout (5 min) to clean up stale threads
+- Guaranteed `__STREAMING_COMPLETE__` sentinel even on worker thread exceptions
+
+### Updated
+- Default LLM model from `databricks-claude-3-7-sonnet` to `databricks-claude-sonnet-4-6` (Claude Sonnet 4.6)
+- All model references across config.yml, databricks.yml, DatabricksChatbot.py, general_functions.py, common_functions.py, Deployment notebook
+- Streaming interval reduced from 200ms to 100ms for snappier UI updates
+- Thread and queue cleanup now uses global lock for thread safety
+- `_start_user_worker` initializes chunk_queues under global lock
+- `clear_chat` callback uses global lock for cleanup
+- Genie chunk deduplication fixed to handle ZWJ unicode escaping in Dash `str()` representation
+- README.md updated: removed deprecated notice, updated model references to Claude Sonnet 4.6, added v1.2
+- Deployment notebook updated for Claude Sonnet 4.6
+
+### Fixed
+- Race condition: Queue/thread dictionary access without synchronization
+- Race condition: Non-atomic streaming state updates in callbacks
+- Race condition: Worker thread accessing replaced queue after `_create_layout` resets
+- Missing `ToolException` class (NameError on Genie validation errors)
+- Worker thread silently dying on unhandled exceptions without sending completion sentinel
+- Genie chunk deduplication failing due to ZWJ unicode escaping differences
+
+---
 ## [1.0.0] - 2025-07-23
 ### Added
 - CHANGELOG.md file

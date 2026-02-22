@@ -18,7 +18,7 @@ resources:
       resources:
         - name: serving-endpoint
           serving_endpoint:
-            name: databricks-claude-3-7-sonnet
+            name: databricks-claude-sonnet-4-6
             permission: CAN_QUERY
         
 targets:

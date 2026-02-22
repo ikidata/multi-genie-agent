@@ -6,94 +6,6 @@ import os
 from dbruntime.databricks_repl_context import get_context
 from databricks.sdk import WorkspaceClient
 
-####### DEPRECATED #######
-# def create_devops_connection(name: str, secret_scope: str, devops_token: str, devops_organization: str, devops_project: str): 
-#     """
-#     Creates a Unity Catalog HTTP connection in Databricks to Azure DevOps.
-
-#     Args:
-#         name (str): The name of the connection to be created.
-#         secret_scope (str): The name of the secret scope where the DevOps token is stored.
-#         devops_token (str): The key name of the DevOps token in the secret scope.
-#         devops_organization (str): The Azure DevOps organization name.
-#         devops_project (str): The Azure DevOps project name.
-
-#     Returns:
-#         None
-#     """
-#     # Retrieve the Databricks server hostname from the context  
-#     databricks_server_hostname = get_context().browserHostName
-#     databricks_server_hostname = f"https://{databricks_server_hostname}"
-      
-#     # Retrieve the Databricks token from the context  
-#     databricks_token  = get_context().apiToken  
-
-#     w = WorkspaceClient()
-#     dbutils = w.dbutils
-#     devops_token = dbutils.secrets.get(secret_scope, devops_token)
-    
-#     # Construct the payload for the connection  
-#     payload = {  
-#         "comment": "Genie-multi-agent DevOps PoC Connection",  
-#         "connection_type": "HTTP",  
-#         "name": name,  
-#         "options": {  
-#             "host": 'https://dev.azure.com',  
-#             "port": "443",  
-#             "base_path": f"/{devops_organization}/{devops_project}",  
-#             "bearer_token": devops_token,  
-#         },  
-#         "read_only": False  
-#     }  
-  
-#     # Run the REST API command to create the connection  
-#     print(run_rest_api(  
-#         token=databricks_token,  
-#         server_hostname=databricks_server_hostname,  
-#         api_version="2.1",  
-#         api_command='/unity-catalog/connections',  
-#         action_type='POST',  
-#         payload=payload  
-#     ))
-  
-
-# def create_genie_connection(name: str):  
-#     '''
-#     DEPRECATED
-#     '''
-  
-#     # Retrieve the Databricks server hostname from the context  
-#     databricks_server_hostname = get_context().browserHostName
-#     databricks_server_hostname = f"https://{databricks_server_hostname}"
-      
-#     # Retrieve the Databricks token from the context  
-#     databricks_token  = get_context().apiToken 
-      
-#     # Construct the payload for the connection  
-#     payload = {  
-#         "comment": "Genie-multi-agent PoC Connection",  
-#         "connection_type": "HTTP",  
-#         "name": name,  
-#         "options": {  
-#             "host": databricks_server_hostname,  
-#             "port": "443",  
-#             "base_path": "/api",  
-#             "bearer_token": databricks_token  
-#         },  
-#         "read_only": False  
-#     }  
-      
-#     # Run the REST API command to create the connection  
-#     print(run_rest_api(  
-#         token=databricks_token,  
-#         server_hostname=databricks_server_hostname,  
-#         api_version="2.1",  
-#         api_command='/unity-catalog/connections',  
-#         action_type='POST',  
-#         payload=payload  
-#     ))
-
-
 def run_rest_api(token: str, server_hostname: str, api_version: str, api_command: str, action_type: str,  payload: dict = {}) -> str:
     """
     Executes a REST API call to the specified server using the provided parameters.
@@ -151,14 +63,14 @@ def get_llm_model_apps_configs(model_name: str) -> list[dict]:
         list[dict]: A list of serving endpoint configurations
     """
     # Known recommended models
-    default_models = ['databricks-claude-3-7-sonnet']
+    default_models = ['databricks-claude-sonnet-4-6']
     
     # Default model configurations
     claude_config = {  
-        "description": "Serving endpoint for LLM model Claude 3.7. Sonnet",  
+        "description": "Serving endpoint for LLM model Claude 4.6. Sonnet",  
         "name": "serving-endpoint",  
         "serving_endpoint": {  
-            "name": 'databricks-claude-3-7-sonnet',  
+            "name": 'databricks-claude-sonnet-4-6',  
             "permission": "CAN_QUERY"  
         }  
     }
@@ -234,7 +146,7 @@ def check_deployment_status(token, server_hostname, app_name, payload, max_tries
     print(f"Deployment of {app_name} did not complete after {max_tries} attempts.")  
     return f"Deployment of {app_name} did not complete after {max_tries} attempts."
 
-def deploy_databricks_apps(name: str, model_name: str = "databricks-claude-3-7-sonnet") -> None:  
+def deploy_databricks_apps(name: str, model_name: str = "databricks-claude-sonnet-4-6") -> None:  
     """
     Deploys a Databricks application with the specified model and monitors its deployment status.
 
@@ -277,7 +189,7 @@ def deploy_databricks_apps(name: str, model_name: str = "databricks-claude-3-7-s
         action_type='POST',  
         payload=payload  
     )  
-
+    
     deployment_id = response['id']  
     print(f"deployment_id is {deployment_id}")
   
